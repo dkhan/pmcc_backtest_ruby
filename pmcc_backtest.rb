@@ -26,6 +26,8 @@ sorted_dates.each_with_index do |entry_date, i|
   next unless prices[entry_date] && prices[exit_date]
 
   iv = vix_by_date[entry_date] || 0.20  # fallback to 20% if VIX missing
+  iv_long = iv + 0.02
+  iv_short = iv
 
   s = prices[entry_date]
   t_long = DAYS_TO_LONG / 365.0
@@ -35,16 +37,16 @@ sorted_dates.each_with_index do |entry_date, i|
   k_long = (s * 0.95).round
   k_short = (s * 1.03).round
 
-  long_price = OptionMath.black_scholes_call(s, k_long, t_long, RISK_FREE_RATE, iv)
-  short_price = OptionMath.black_scholes_call(s, k_short, t_short, RISK_FREE_RATE, iv)
+  long_price = OptionMath.black_scholes_call(s, k_long, t_long, RISK_FREE_RATE, iv_long) + 0.10
+  short_price = OptionMath.black_scholes_call(s, k_short, t_short, RISK_FREE_RATE, iv_short) - 0.10
 
   s_exit = prices[exit_date]
   t_long_left = (DAYS_TO_LONG - DAYS_TO_SHORT) / 365.0
 
-  long_close = OptionMath.black_scholes_call(s_exit, k_long, t_long_left, RISK_FREE_RATE, iv)
-  short_close = OptionMath.black_scholes_call(s_exit, k_short, 0, RISK_FREE_RATE, iv)
+  long_close = OptionMath.black_scholes_call(s_exit, k_long, t_long_left, RISK_FREE_RATE, iv_long) - 0.10
+  short_close = OptionMath.black_scholes_call(s_exit, k_short, 0, RISK_FREE_RATE, iv_short) + 0.10
 
-  total_pnl = (long_close - long_price) + (short_price - short_close)
+  total_pnl = (long_close - long_price) + (short_price - short_close) - 2.00
   debit_paid = long_price - short_price
   roi = total_pnl / debit_paid
 
