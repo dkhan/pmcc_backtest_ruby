@@ -2,7 +2,9 @@ from AlgorithmImports import *
 
 class LeapStrategy(QCAlgorithm):
     def Initialize(self):
-        self.ticker = "TSLA"
+        self.ticker = "TSLA"  # Change ticker here
+        self.contracts_to_buy = 2  # Change number of contracts here
+
         self.SetStartDate(2015, 1, 1)
         self.SetEndDate(2025, 6, 16)
         self.SetCash(100000)
@@ -11,7 +13,6 @@ class LeapStrategy(QCAlgorithm):
         self.option_contract = self.AddOption(self.ticker, Resolution.Daily)
         self.option_contract.SetFilter(self.OptionFilter)
 
-        self.last_close = None
         self.open_trades = []
         self.trade_log = []
         self.trade_counter = 0
@@ -24,7 +25,7 @@ class LeapStrategy(QCAlgorithm):
         if self.underlying not in data or data[self.underlying] is None:
             return
 
-        # Only act every second Friday
+        # Only act every second Friday after 10 AM
         if self.Time.weekday() != 4 or self.Time.hour < 10:
             return
         if self.last_trade_date and (self.Time.date() - self.last_trade_date).days < 14:
@@ -77,9 +78,9 @@ class LeapStrategy(QCAlgorithm):
             contracts = sorted(chain.Value, key=lambda x: abs(x.Greeks.Delta - 0.7))
             for c in contracts:
                 days_to_expiry = (c.Expiry.date() - self.Time.date()).days
-                total_cost = c.AskPrice * 100 * 10
+                total_cost = c.AskPrice * 100 * self.contracts_to_buy
                 if 0.60 < c.Greeks.Delta < 0.80 and 360 <= days_to_expiry <= 391 and total_cost <= available_margin:
-                    self.MarketOrder(c.Symbol, 10)
+                    self.MarketOrder(c.Symbol, self.contracts_to_buy)
                     self.trade_counter += 1
                     self.open_trades.append({
                         "trade_number": self.trade_counter,
@@ -88,7 +89,7 @@ class LeapStrategy(QCAlgorithm):
                         "entry_time": self.Time,
                         "delta": c.Greeks.Delta
                     })
-                    log_msg = f"{self.Time.strftime('%Y-%m-%d')} Trade#{self.trade_counter} Bought 10x LEAP {self.ticker} {c.Expiry.strftime('%Y-%m-%d')} Call ${c.Strike:.0f} at ${c.AskPrice:.2f}, delta {c.Greeks.Delta:.2f}"
+                    log_msg = f"{self.Time.strftime('%Y-%m-%d')} Trade#{self.trade_counter} Bought {self.contracts_to_buy}x LEAP {self.ticker} {c.Expiry.strftime('%Y-%m-%d')} Call ${c.Strike:.0f} at ${c.AskPrice:.2f}, delta {c.Greeks.Delta:.2f}"
                     self.Debug(log_msg)
                     self.Log(log_msg)
                     return
