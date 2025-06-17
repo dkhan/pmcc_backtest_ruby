@@ -1,38 +1,40 @@
 from AlgorithmImports import *
 
-class QQQLeapStrategy(QCAlgorithm):
+class LeapStrategy(QCAlgorithm):
     def Initialize(self):
+        self.ticker = "TSLA"
         self.SetStartDate(2015, 1, 1)
-        self.SetEndDate(2024, 12, 31)
+        self.SetEndDate(2025, 6, 16)
         self.SetCash(100000)
 
-        self.qqq = self.AddEquity("QQQ", Resolution.Daily).Symbol
-        self.option = self.AddOption("QQQ", Resolution.Daily)
-        self.option.SetFilter(self.OptionFilter)
+        self.underlying = self.AddEquity(self.ticker, Resolution.Daily).Symbol
+        self.option_contract = self.AddOption(self.ticker, Resolution.Daily)
+        self.option_contract.SetFilter(self.OptionFilter)
 
         self.last_close = None
-        self.open_trades = []  # List of dicts with trade metadata
+        self.open_trades = []
         self.trade_log = []
         self.trade_counter = 0
+        self.last_trade_date = None
 
     def OptionFilter(self, universe):
         return universe.IncludeWeeklys().Strikes(-10, 10).Expiration(360, 391)
 
     def OnData(self, data):
-        if self.qqq not in data or data[self.qqq] is None:
+        if self.underlying not in data or data[self.underlying] is None:
             return
 
-        price = data[self.qqq].Close
+        # Only act every second Friday
+        if self.Time.weekday() != 4 or self.Time.hour < 10:
+            return
+        if self.last_trade_date and (self.Time.date() - self.last_trade_date).days < 14:
+            return
 
-        # Detect -1% daily drop
-        # if self.last_close:
-        #     pct_drop = (price - self.last_close) / self.last_close
-        #     if pct_drop <= -0.005:
-        self.TryOpenNewPosition(data)
+        self.CheckExits()
+        self.TryOpenNewPositions(data)
+        self.last_trade_date = self.Time.date()
 
-        self.last_close = price
-
-        # Check for exits: profit target or near expiration
+    def CheckExits(self):
         to_remove = []
         for trade in self.open_trades:
             symbol = trade["symbol"]
@@ -62,24 +64,22 @@ class QQQLeapStrategy(QCAlgorithm):
         for trade in to_remove:
             self.open_trades.remove(trade)
 
-    def TryOpenNewPosition(self, data):
+    def TryOpenNewPositions(self, data):
         portfolio_value = self.Portfolio.TotalPortfolioValue
         margin_limit = portfolio_value * 0.99
         used_margin = sum([self.Securities[t["symbol"]].Price * 100 for t in self.open_trades if t["symbol"] in self.Securities])
         available_margin = margin_limit - used_margin
 
         for chain in data.OptionChains:
-            if chain.Key != self.option.Symbol:
+            if chain.Key != self.option_contract.Symbol:
                 continue
+
             contracts = sorted(chain.Value, key=lambda x: abs(x.Greeks.Delta - 0.7))
             for c in contracts:
                 days_to_expiry = (c.Expiry.date() - self.Time.date()).days
-                if (
-                    0.60 < c.Greeks.Delta < 0.80 and 
-                    360 <= days_to_expiry <= 391 and 
-                    c.AskPrice * 100 <= available_margin
-                ):
-                    self.MarketOrder(c.Symbol, 1)
+                total_cost = c.AskPrice * 100 * 10
+                if 0.60 < c.Greeks.Delta < 0.80 and 360 <= days_to_expiry <= 391 and total_cost <= available_margin:
+                    self.MarketOrder(c.Symbol, 10)
                     self.trade_counter += 1
                     self.open_trades.append({
                         "trade_number": self.trade_counter,
@@ -88,7 +88,7 @@ class QQQLeapStrategy(QCAlgorithm):
                         "entry_time": self.Time,
                         "delta": c.Greeks.Delta
                     })
-                    log_msg = f"{self.Time.strftime('%Y-%m-%d')} Trade#{self.trade_counter} Bought LEAP QQQ {c.Expiry.strftime('%Y-%m-%d')} Call ${c.Strike:.0f} at ${c.AskPrice:.2f}, delta {c.Greeks.Delta:.2f}"
+                    log_msg = f"{self.Time.strftime('%Y-%m-%d')} Trade#{self.trade_counter} Bought 10x LEAP {self.ticker} {c.Expiry.strftime('%Y-%m-%d')} Call ${c.Strike:.0f} at ${c.AskPrice:.2f}, delta {c.Greeks.Delta:.2f}"
                     self.Debug(log_msg)
                     self.Log(log_msg)
                     return
@@ -114,15 +114,10 @@ class QQQLeapStrategy(QCAlgorithm):
                 self.Liquidate(symbol)
         self.open_trades.clear()
 
-        # Output all trade logs
-        header = "\nTRADE SUMMARY\nTrade# | Entry Date | Exit Date | Expiry | Strike | Entry Price | Exit Price | Delta | Profit %\n" + "-"*95
+        header = f"\nTRADE SUMMARY for {self.ticker}\nTrade# | Entry Date | Exit Date | Expiry | Strike | Entry Price | Exit Price | Delta | Profit %\n" + "-"*95
         self.Debug(header)
         self.Log(header)
         for i, trade in enumerate(self.trade_log):
             row = f"{trade['Trade#']} | {trade['EntryDate']} | {trade['ExitDate']} | {trade['Expiry']} | {trade['Strike']} | {trade['EntryPrice']:.2f} | {trade['ExitPrice']:.2f} | {trade['Delta']:.2f} | {trade['Profit%']:.2f}%"
             self.Debug(row)
             self.Log(row)
-            
-            if (i + 1) % 50 == 0:
-                self.Debug(f"... pausing after {i + 1} logs ...")
-                self.Sleep(1000)  # wait 1 second (1000 ms)
