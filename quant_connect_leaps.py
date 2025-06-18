@@ -2,8 +2,8 @@ from AlgorithmImports import *
 
 class LeapStrategy(QCAlgorithm):
     def Initialize(self):
-        self.ticker = "TSLA"  # Change ticker here
-        self.contracts_to_buy = 2  # Change number of contracts here
+        self.ticker = "SPY"  # Change ticker here
+        self.contracts_to_buy = 10  # Change number of contracts here
 
         self.SetStartDate(2015, 1, 1)
         self.SetEndDate(2025, 6, 16)
@@ -25,7 +25,6 @@ class LeapStrategy(QCAlgorithm):
         if self.underlying not in data or data[self.underlying] is None:
             return
 
-        # Only act every second Friday after 10 AM
         if self.Time.weekday() != 4 or self.Time.hour < 10:
             return
         if self.last_trade_date and (self.Time.date() - self.last_trade_date).days < 14:
@@ -49,17 +48,10 @@ class LeapStrategy(QCAlgorithm):
             if current_price >= 1.5 * entry_price or expiry_days_remaining <= 30:
                 self.Liquidate(symbol)
                 profit_pct = round((current_price - entry_price) / entry_price * 100, 2)
-                self.trade_log.append({
-                    "Trade#": trade["trade_number"],
-                    "EntryDate": trade["entry_time"].strftime('%Y-%m-%d'),
-                    "ExitDate": self.Time.strftime('%Y-%m-%d'),
-                    "Expiry": symbol.ID.Date.strftime('%Y-%m-%d'),
-                    "Strike": symbol.ID.StrikePrice,
-                    "EntryPrice": entry_price,
-                    "ExitPrice": current_price,
-                    "Delta": trade["delta"],
-                    "Profit%": profit_pct
-                })
+                trade["exit_price"] = current_price
+                trade["exit_date"] = self.Time.strftime('%Y-%m-%d')
+                trade["profit_pct"] = profit_pct
+                self.trade_log.append(trade)
                 to_remove.append(trade)
 
         for trade in to_remove:
@@ -70,6 +62,7 @@ class LeapStrategy(QCAlgorithm):
         margin_limit = portfolio_value * 0.99
         used_margin = sum([self.Securities[t["symbol"]].Price * 100 for t in self.open_trades if t["symbol"] in self.Securities])
         available_margin = margin_limit - used_margin
+        open_contracts_now = sum(sec.Holdings.Quantity for sec in self.Securities.Values if sec.Holdings.Quantity > 0)
 
         for chain in data.OptionChains:
             if chain.Key != self.option_contract.Symbol:
@@ -82,14 +75,20 @@ class LeapStrategy(QCAlgorithm):
                 if 0.60 < c.Greeks.Delta < 0.80 and 360 <= days_to_expiry <= 391 and total_cost <= available_margin:
                     self.MarketOrder(c.Symbol, self.contracts_to_buy)
                     self.trade_counter += 1
-                    self.open_trades.append({
+                    equity_now = self.Portfolio.TotalPortfolioValue
+                    trade_info = {
                         "trade_number": self.trade_counter,
                         "symbol": c.Symbol,
                         "entry_price": c.AskPrice,
                         "entry_time": self.Time,
-                        "delta": c.Greeks.Delta
-                    })
-                    log_msg = f"{self.Time.strftime('%Y-%m-%d')} Trade#{self.trade_counter} Bought {self.contracts_to_buy}x LEAP {self.ticker} {c.Expiry.strftime('%Y-%m-%d')} Call ${c.Strike:.0f} at ${c.AskPrice:.2f}, delta {c.Greeks.Delta:.2f}"
+                        "delta": c.Greeks.Delta,
+                        "contracts": self.contracts_to_buy,
+                        "equity_at_entry": equity_now,
+                        "free_margin_at_entry": available_margin,
+                        "open_contracts_at_entry": open_contracts_now
+                    }
+                    self.open_trades.append(trade_info)
+                    log_msg = f"{self.Time.strftime('%Y-%m-%d')} Trade#{self.trade_counter} Bought {self.contracts_to_buy}x {self.ticker} {c.Expiry.strftime('%Y-%m-%d')} Call ${c.Strike:.0f} at ${c.AskPrice:.2f}, delta {c.Greeks.Delta:.2f} | Equity: ${equity_now:.2f}, Contracts: {open_contracts_now}, Free Margin: ${available_margin:.2f}"
                     self.Debug(log_msg)
                     self.Log(log_msg)
                     return
@@ -101,24 +100,29 @@ class LeapStrategy(QCAlgorithm):
                 current_price = self.Securities[symbol].Price
                 entry_price = trade["entry_price"]
                 profit_pct = round((current_price - entry_price) / entry_price * 100, 2) if entry_price > 0 else 0
-                self.trade_log.append({
-                    "Trade#": trade["trade_number"],
-                    "EntryDate": trade["entry_time"].strftime('%Y-%m-%d'),
-                    "ExitDate": self.Time.strftime('%Y-%m-%d'),
-                    "Expiry": symbol.ID.Date.strftime('%Y-%m-%d'),
-                    "Strike": symbol.ID.StrikePrice,
-                    "EntryPrice": entry_price,
-                    "ExitPrice": current_price,
-                    "Delta": trade["delta"],
-                    "Profit%": profit_pct
-                })
+                trade["exit_price"] = current_price
+                trade["exit_date"] = self.Time.strftime('%Y-%m-%d')
+                trade["profit_pct"] = profit_pct
+                self.trade_log.append(trade)
                 self.Liquidate(symbol)
+
         self.open_trades.clear()
 
-        header = f"\nTRADE SUMMARY for {self.ticker}\nTrade# | Entry Date | Exit Date | Expiry | Strike | Entry Price | Exit Price | Delta | Profit %\n" + "-"*95
+        header = f"\nTRADE SUMMARY for {self.ticker}\nTrade# | Entry Date | Exit Date | Expiry | Strike | Entry Price | Exit Price | Delta | Profit % | Equity | Open Contracts | Free Margin\n" + "-"*140
         self.Debug(header)
         self.Log(header)
-        for i, trade in enumerate(self.trade_log):
-            row = f"{trade['Trade#']} | {trade['EntryDate']} | {trade['ExitDate']} | {trade['Expiry']} | {trade['Strike']} | {trade['EntryPrice']:.2f} | {trade['ExitPrice']:.2f} | {trade['Delta']:.2f} | {trade['Profit%']:.2f}%"
+
+        for trade in self.trade_log:
+            row = (
+                f"{trade['trade_number']} | {trade['entry_time'].strftime('%Y-%m-%d')} | {trade.get('exit_date', '')} | {trade['symbol'].ID.Date.strftime('%Y-%m-%d')} | "
+                f"{trade['symbol'].ID.StrikePrice:.0f} | {trade['entry_price']:.2f} | {trade.get('exit_price', 0):.2f} | {trade['delta']:.2f} | "
+                f"{trade.get('profit_pct', '')}% | ${trade['equity_at_entry']:.2f} | {trade['open_contracts_at_entry']} | ${trade['free_margin_at_entry']:.2f}"
+            )
             self.Debug(row)
             self.Log(row)
+
+        final_equity = round(self.Portfolio.TotalPortfolioValue, 2)
+        final_contracts = sum(sec.Holdings.Quantity for sec in self.Securities.Values if sec.Holdings.Quantity > 0)
+        footer = f"\nFINAL EQUITY: ${final_equity}, OPEN CONTRACTS: {final_contracts}"
+        self.Debug(footer)
+        self.Log(footer)
