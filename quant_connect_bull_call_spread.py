@@ -43,30 +43,29 @@ class QQQLowDeltaBullCallSpread(QCAlgorithm):
             if not calls:
                 return
 
-            long_call = sorted(calls, key=lambda c: abs(c.Greeks.Delta - self.long_delta_target))[:1]
-            short_call = sorted(calls, key=lambda c: abs(c.Greeks.Delta - self.short_delta_target))[:1]
+            # Sort by how close deltas are to the targets
+            sorted_long_calls = sorted(calls, key=lambda c: abs(c.Greeks.Delta - self.long_delta_target))
+            sorted_short_calls = sorted(calls, key=lambda c: abs(c.Greeks.Delta - self.short_delta_target))
 
-            if not long_call or not short_call:
-                return
+            # Find the first valid combination: short strike > long strike and same expiry
+            for long in sorted_long_calls:
+                for short in sorted_short_calls:
+                    if (
+                        long.Expiry == short.Expiry and
+                        short.ID.StrikePrice > long.ID.StrikePrice
+                    ):
+                        self.Sell(short.Symbol, self.contracts_to_trade)
+                        self.Buy(long.Symbol, self.contracts_to_trade)
 
-            long = long_call[0]
-            short = short_call[0]
+                        self.open_positions.append({
+                            "long": long.Symbol,
+                            "short": short.Symbol,
+                            "expiry": long.Expiry.date()
+                        })
 
-            if long.Expiry != short.Expiry:
-                return
-
-            self.Sell(short.Symbol, self.contracts_to_trade)
-            self.Buy(long.Symbol, self.contracts_to_trade)
-
-            self.open_positions.append({
-                "long": long.Symbol,
-                "short": short.Symbol,
-                "expiry": long.Expiry.date()
-            })
-
-            self.Debug(f"{self.Time.date()} | Entered Bull Call Spread: Buy {long.ID.StrikePrice}C ({long.Greeks.Delta:.2f}) / " +
-                       f"Sell {short.ID.StrikePrice}C ({short.Greeks.Delta:.2f}) exp {long.Expiry.date()}")
-            break
+                        self.Debug(f"{self.Time.date()} | Entered Bull Call Spread: Buy {long.ID.StrikePrice}C ({long.Greeks.Delta:.2f}) / " +
+                                   f"Sell {short.ID.StrikePrice}C ({short.Greeks.Delta:.2f}) exp {long.Expiry.date()}")
+                        return  # Exit after one valid spread
 
     def CheckExits(self):
         to_close = []
