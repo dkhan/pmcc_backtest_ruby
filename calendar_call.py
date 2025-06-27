@@ -3,7 +3,7 @@ from AlgorithmImports import *
 class OvernightCalendarCallSafe(QCAlgorithm):
     def Initialize(self):
         self.SetStartDate(2024, 1, 8)
-        self.SetEndDate(2024, 1, 28)
+        self.SetEndDate(2024, 3, 31)
         self.SetCash(30000)  # Adjust based on short call margin
         self.contract_qty = 1
 
@@ -19,7 +19,7 @@ class OvernightCalendarCallSafe(QCAlgorithm):
         self.open_time = time(15, 45)  # Place trades after 3:45 PM
 
     def OptionFilter(self, universe):
-        return universe.IncludeWeeklys().Strikes(-5, 5).Expiration(0, 7)
+        return universe.IncludeWeeklys().Strikes(-5, 5).Expiration(0, 10)
 
     def OnData(self, slice: Slice):     
         today = self.Time.date()
@@ -72,7 +72,7 @@ class OvernightCalendarCallSafe(QCAlgorithm):
             return
 
         short_expiry = expiries[0]
-        long_expiry = expiries[min(6, len(expiries) - 1)]
+        long_expiry = expiries[min(7, len(expiries) - 1)]
 
         # If no long call, open one and lock strike
         if not self.long_call:
