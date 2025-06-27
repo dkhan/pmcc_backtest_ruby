@@ -2,9 +2,9 @@ from AlgorithmImports import *
 
 class OvernightCalendarCallSafe(QCAlgorithm):
     def Initialize(self):
-        self.SetStartDate(2024, 1, 3)
-        self.SetEndDate(2024, 12, 31)
-        self.SetCash(100000)
+        self.SetStartDate(2024, 1, 8)
+        self.SetEndDate(2025, 6, 26)
+        self.SetCash(10000)
 
         self.ticker = "SPY"
         self.equity = self.AddEquity(self.ticker, Resolution.Minute)
@@ -14,12 +14,12 @@ class OvernightCalendarCallSafe(QCAlgorithm):
         self.long_call = None
         self.short_call = None
         self.last_trade_date = None
-        self.open_time = time(15, 0)  # Trade after 3:00 PM
+        self.open_time = time(15, 45)  # Trade after 3:45 PM
 
     def OptionFilter(self, universe):
         return universe.IncludeWeeklys().Strikes(-5, 5).Expiration(0, 10)
 
-    def OnData(self, slice: Slice):
+    def OnData(self, slice: Slice):        
         if self.Time.time() < self.open_time:
             return
 
@@ -37,19 +37,19 @@ class OvernightCalendarCallSafe(QCAlgorithm):
         today = self.Time.date()
         weekday = self.Time.weekday()  # Monday=0, Friday=4
 
-        # Prevent long call from being exercised
-        if self.long_call and self.long_call.Expiry.date() <= self.Time.date() + timedelta(days=1):
-            if self.Portfolio[self.long_call.Symbol].Invested:
-                self.Liquidate(self.long_call.Symbol)
-                self.Debug(f"{self.Time} Liquidated long call before expiry: {self.long_call.Symbol}")
-            self.long_call = None
-
-        # Prevent short call from being assigned
-        if self.short_call and self.short_call.Expiry.date() <= self.Time.date() + timedelta(days=1):
+        # Close short call
+        if self.short_call and self.short_call.Expiry.date() == self.Time.date():
             if self.Portfolio[self.short_call.Symbol].Invested:
                 self.Liquidate(self.short_call.Symbol)
                 self.Debug(f"{self.Time} Liquidated short call before expiry: {self.short_call.Symbol}")
             self.short_call = None
+
+        # Prevent long call from being exercised
+        if self.long_call and self.long_call.Expiry.date() == self.Time.date():
+            if self.Portfolio[self.long_call.Symbol].Invested:
+                self.Liquidate(self.long_call.Symbol)
+                self.Debug(f"{self.Time} Liquidated long call before expiry: {self.long_call.Symbol}")
+            self.long_call = None
 
         # On Friday, close all positions
         if weekday == 4:
@@ -68,19 +68,8 @@ class OvernightCalendarCallSafe(QCAlgorithm):
         if self.last_trade_date == today:
             return
 
-        # Ensure we have enough margin to open a new spread
-        if self.Portfolio.MarginRemaining < 5000:
-            self.Debug(f"{self.Time} Skipping trade due to low margin.")
-            return
-
-        # Close existing short call if still open
-        if self.short_call and self.Portfolio[self.short_call.Symbol].Invested:
-            self.Liquidate(self.short_call.Symbol)
-            self.Debug(f"{self.Time} Closed previous short call: {self.short_call.Symbol}")
-            self.short_call = None
-
         # Find short and long contracts
-        short_expiry = today + timedelta(days=1)
+        short_expiry = today + timedelta(days=2)
         long_expiry = today + timedelta(days=7)
 
         short_contract = self.FindContract(calls, atm_strike, short_expiry)
