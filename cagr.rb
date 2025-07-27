@@ -36,7 +36,14 @@ begin
     2374.95, # 10 contract(s), delta: 21/7, DTE: 35, capital: 12,640, Max VIX on Enter & Exit: 28, Max drawdown: -31.57%, -27,102$ on 1/29/2019
     2383.05, # 10 contract(s), delta: 21/7, DTE: 35, capital: 12,330, Max VIX on Enter & Exit: 28, Stop loss: at 98% of premium, Max drawdown: -34.49%, -26,929$ on 1/29/2019
     2407.06, # 10 contract(s), delta: 21/7, DTE: 35, capital: 12,330, Max VIX on Enter & Exit: 28, Stop loss: at 84% of premium, Max drawdown: -37.4%, -24,779$ on 1/29/2019
-  ]
+    2402.09, # 10 contract(s), delta: 21/7, DTE: 35, capital: 12,640, Max VIX on Enter & Exit: 28, Stop loss: at 0% of premium, Take profit: 420%, Max drawdown: -32.18%, -25,987$ on 1/29/2019
+    2423.57, # 10 contract(s), delta: 21/7, DTE: 35, capital: 12,330, Max VIX on Enter & Exit: 28, Stop loss: at 84% of premium, Take profit: 399%, Max drawdown: -37.38%, -23,664$ on 1/29/2019
+    2461.35, # 10 contract(s), delta: 21/7, DTE: 35, capital: 12,330, Max VIX on Enter & Exit: 28, Stop loss: at 84% of premium, Take profit: 420%, Max drawdown: -35.85%, -23,664$ on 1/29/2019
+  ] 
+  # 2121.06 # 2025-06-27 10 contract(s), delta: 21/7, DTE: 35, capital: 12,330, Max VIX on Enter & Exit: 28, Stop loss: at 84% of premium, Max drawdown: -37.4%, -24,779$ on 1/29/2019
+  # 2292.12 # 2025-06-27 10 contract(s), delta: 21/7, DTE: 35, capital: 11,970, Max VIX on Enter & Exit: 28, Stop loss: at 84% of premium, Take profit: 350%, Max drawdown: -39.32%, -23,664$ on 1/29/2019
+  # 2261.35 # 2025-06-27 10 contract(s), delta: 21/7, DTE: 35, capital: 14,140, Max VIX on Enter & Exit: 28, Stop loss: at 84% of premium, Take profit: 490%, Max drawdown: -33.24%, -24,779$ on 1/29/2019
+  # 1407.87 # 2025-06-27 10 contract(s), delta: 21/7, DTE: 35, capital: 10,860, Max VIX on Enter & Exit: 21, Stop loss: at 84% of premium, Take profit: 420%, Max drawdown: -52.26%, -16,613$ on 12/30/2016
   start_date = "2013-01-02"
   end_date = "2025-06-18"
 
@@ -62,4 +69,7 @@ end
 # CAGR for 2374.95% return from 2013-01-02 to 2025-06-18: 29.36%
 # CAGR for 2383.05% return from 2013-01-02 to 2025-06-18: 29.39%
 # CAGR for 2407.06% return from 2013-01-02 to 2025-06-18: 29.49%
+# CAGR for 2402.09% return from 2013-01-02 to 2025-06-18: 29.47%
+# CAGR for 2423.57% return from 2013-01-02 to 2025-06-18: 29.56%
+# CAGR for 2461.35% return from 2013-01-02 to 2025-06-18: 29.71%
 
