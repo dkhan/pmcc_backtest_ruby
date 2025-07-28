@@ -123,7 +123,7 @@ class QQQLowDeltaBullCallSpreadWithROIClose(QCAlgorithm):
                 })
 
             # Stop loss
-            elif roi < 0.84:
+            elif roi > 0 and roi < (1 - 0.84):
                 self.Liquidate(long)
                 self.Liquidate(short)
                 pos.update({
@@ -135,7 +135,7 @@ class QQQLowDeltaBullCallSpreadWithROIClose(QCAlgorithm):
                 })
 
             # Expiration
-            elif (pos["expiry"] - self.Time.date()).days <= 0:
+            elif (pos["expiry"] - self.Time.date()).days == 0:
                 self.Liquidate(long)
                 self.Liquidate(short)
                 pos.update({
@@ -163,11 +163,11 @@ class QQQLowDeltaBullCallSpreadWithROIClose(QCAlgorithm):
             premium_in = pos["entry_premium"]
             premium_out = pos["exit_premium"]
             profit = (premium_out - premium_in) * 100
-            roi = ((premium_out / premium_in - 1) * 100) if premium_in != 0 else 0
+            roi = ((premium_out / premium_in) * 100) if premium_in != 0 else 0
 
             long_strike = pos["long"].ID.StrikePrice
             short_strike = pos["short"].ID.StrikePrice
 
             self.Debug(f"{pos['entry_date']} | {pos['exit_date']} | {entry_price:14.2f} | {exit_price:15.2f} | "
                        f"{long_strike:.1f}/{short_strike:.1f}         | {exp} | {dte:3} | "
-                       f"{premium_in:7.2f} | {profit:7.2f} | {pos['close_reason']:12} | {roi:6.2f}")
+                       f"{-premium_in:7.2f} | {-profit:7.2f} | {pos['close_reason']:12} | {roi:6.2f}")
