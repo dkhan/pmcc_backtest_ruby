@@ -58,6 +58,38 @@ Avg ROI: 0.20
 Median ROI: 0.21  
 ==============================
 
+## Local QQQ 21/7-Delta Call-Spread Backtest
+
+The repository also includes a fast local backtester that reads the downloaded
+QQQ option-chain Parquet files directly. It uses historical bid/ask quotes and
+vendor-provided deltas instead of estimating option prices.
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-local-backtest.txt
+.venv/bin/python local_qqq_backtest.py
+```
+
+Useful alternatives:
+
+```bash
+# Summary only
+.venv/bin/python local_qqq_backtest.py --quiet
+
+# Keep idle portfolio cash invested in QQQ
+.venv/bin/python local_qqq_backtest.py --hold-qqq
+
+# Enable the historical VIX entry/exit rules
+.venv/bin/python local_qqq_backtest.py --use-vix
+
+# Override the equity fraction or test dates
+.venv/bin/python local_qqq_backtest.py \
+  --entry-fraction 0.01 --start-date 2013-01-02 --end-date 2025-06-30
+```
+
+Results are written to `results/qqq_local/trades.csv` and
+`results/qqq_local/daily_equity.csv`.
+
 ---
 
 ## 📌 Notes

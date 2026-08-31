@@ -1,0 +1,7 @@
+2016-01-01 00:00:00 Launching analysis for c7d79e007e99bb79f492a84f2d8552ec with LEAN Engine v2.5.0.0.18041
+2016-01-01 00:00:00 ORB V1 | QQQ | 2016-01-01..2023-02-17 | risk=1% | exposure_cap=4x | target=10R | fee=$0.0005/share | slippage=0
+2023-02-17 16:00:00 ORB V1 FINAL | trades=1778 (paper~1795) | long=907 (51.01%, paper~51%) | short=871 (48.99%, paper~49%) | wins=426 | win_rate=23.96% (paper~24%) | avg_R=0.1778 (paper~0.13R)
+2023-02-17 16:00:00 ORB V1 EXITS | stop=1326 | target=46 | eod=406 | rejected_entries=0 | intended_entries=1778 | entry_sizing_drifts=717 | double_fill_repairs=0 | dojis=17
+2023-02-17 16:00:00 ORB V1 RECONCILIATION | trades_plus_dojis_plus_rejected=1795 | non_doji_signals=1778 | open_position=False
+2023-02-17 16:00:00 ORB V1 PERFORMANCE | net_profit=695.092% (paper~676%) | cagr=33.718% (paper~33%) | sharpe=0.982 (paper~1.13) | drawdown=23.900% (paper~22%)
+2023-02-17 16:00:00 Algorithm Id:(c7d79e007e99bb79f492a84f2d8552ec) completed in 25.30 seconds at 56k data points per second. Processing total of 1,407,834 data points.

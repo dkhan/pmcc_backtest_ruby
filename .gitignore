@@ -1,0 +1,5 @@
+.venv/
+data/historical_options/
+results/qqq_local/
+__pycache__/
+*.pyc
