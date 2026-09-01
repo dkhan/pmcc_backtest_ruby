@@ -82,9 +82,12 @@ Useful alternatives:
 # Enable the historical VIX entry/exit rules
 .venv/bin/python local_qqq_backtest.py --use-vix
 
-# Override the equity fraction or test dates
+# Use the earlier percentage-plus-ratchet sizing (fixed 10 is the default)
+.venv/bin/python local_qqq_backtest.py --contracts 0 --entry-fraction 0.01
+
+# Override fixed contracts or test dates
 .venv/bin/python local_qqq_backtest.py \
-  --entry-fraction 0.01 --start-date 2013-01-02 --end-date 2025-06-30
+  --contracts 5 --start-date 2013-01-02 --end-date 2025-06-30
 ```
 
 Results are written to `results/qqq_local/trades.csv` and

@@ -19,6 +19,7 @@ class Config:
     start_date: date = date(2013, 1, 2)
     end_date: date = date(2025, 6, 30)
     initial_cash: float = 12_330.0
+    fixed_contracts: Optional[int] = 10
     entry_equity_fraction: float = 0.01
     target_dte: int = 35
     max_dte: int = 42
@@ -218,10 +219,13 @@ class QqqCallSpreadBacktest:
         long_leg, short_leg, expiry, debit = selected
         equity = self.portfolio_value(qqq_price, quotes)
         cost_per_contract = debit * 100
-        percentage_size = math.floor(
-            (equity * self.cfg.entry_equity_fraction - 1e-9) / cost_per_contract
-        )
-        contracts = max(1, percentage_size, self.contract_floor)
+        if self.cfg.fixed_contracts is not None:
+            contracts = self.cfg.fixed_contracts
+        else:
+            percentage_size = math.floor(
+                (equity * self.cfg.entry_equity_fraction - 1e-9) / cost_per_contract
+            )
+            contracts = max(1, percentage_size, self.contract_floor)
         fees = 2 * self.cfg.fee_per_contract_per_leg * contracts
         total_cost = cost_per_contract * contracts
         self.raise_cash(total_cost + fees, qqq_price)
@@ -381,6 +385,12 @@ class QqqCallSpreadBacktest:
         print(f"Max drawdown     : {max_drawdown:.2%}")
         print(f"Total fees       : ${total_fees:,.2f}")
         print(f"Contract floor   : {self.contract_floor}")
+        sizing = (
+            f"fixed {self.cfg.fixed_contracts}"
+            if self.cfg.fixed_contracts is not None
+            else f"dynamic {self.cfg.entry_equity_fraction:.2%} with ratchet"
+        )
+        print(f"Position sizing  : {sizing}")
         print(f"Skipped entries  : {self.skipped_entries}")
         if self.skipped_entry_dates:
             print(
@@ -440,6 +450,12 @@ def parse_args():
     )
     parser.add_argument("--output-dir", type=Path, default=root / "results/qqq_local")
     parser.add_argument("--entry-fraction", type=float, default=0.01)
+    parser.add_argument(
+        "--contracts",
+        type=int,
+        default=10,
+        help="Fixed contracts per trade (default: 10); use 0 for dynamic sizing",
+    )
     parser.add_argument("--start-date", type=date.fromisoformat, default=date(2013, 1, 2))
     parser.add_argument("--end-date", type=date.fromisoformat, default=date(2025, 6, 30))
     parser.add_argument("--hold-qqq", action="store_true")
@@ -450,9 +466,12 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.contracts < 0:
+        raise SystemExit("--contracts must be 0 or a positive integer")
     config = Config(
         start_date=args.start_date,
         end_date=args.end_date,
+        fixed_contracts=args.contracts or None,
         entry_equity_fraction=args.entry_fraction,
         hold_idle_cash_in_qqq=args.hold_qqq,
         use_vix_rules=args.use_vix,
