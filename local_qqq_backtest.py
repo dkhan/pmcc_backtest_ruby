@@ -17,7 +17,7 @@ import duckdb
 @dataclass
 class Config:
     start_date: date = date(2013, 1, 2)
-    end_date: date = date(2025, 6, 30)
+    end_date: date = date(2025, 12, 25)
     initial_cash: float = 12_330.0
     fixed_contracts: Optional[int] = 10
     entry_equity_fraction: float = 0.01
@@ -30,9 +30,17 @@ class Config:
     fee_per_contract_per_leg: float = 0.65
     hold_idle_cash_in_qqq: bool = False
     use_vix_rules: bool = False
+    vix_trend_entry_threshold: Optional[float] = None
     entry_vix_min: float = 8.0
     entry_vix_max: float = 27.0
     vix_exit: float = 28.0
+    debit_ratio_min: Optional[float] = None
+    debit_ratio_max: Optional[float] = None
+    skip_return_min: Optional[float] = None
+    skip_return_max: Optional[float] = None
+    return_lookback: int = 20
+    max_open_debit_fraction: Optional[float] = None
+    check_tp_sl_daily: bool = False
 
 
 @dataclass
@@ -95,8 +103,12 @@ class QqqCallSpreadBacktest:
         self.trades: list[dict] = []
         self.daily: list[dict] = []
         self.skipped_entries = 0
+        self.vix_filtered_entries = 0
+        self.rule_filtered_entries = 0
         self.skipped_entry_dates: list[date] = []
-        self.vix = self._load_vix() if config.use_vix_rules else {}
+        self.vix = self._load_vix() if (
+            config.use_vix_rules or config.vix_trend_entry_threshold is not None
+        ) else {}
 
     @staticmethod
     def _as_date(value) -> date:
@@ -133,6 +145,33 @@ class QqqCallSpreadBacktest:
             return True
         following = days[index + 1][0]
         return current.isocalendar()[:2] != following.isocalendar()[:2]
+
+    def entry_vix_allowed(self, days: list[tuple[date, float]], index: int) -> bool:
+        """Use only VIX closes known before the current session's entry."""
+        if self.cfg.vix_trend_entry_threshold is not None:
+            if index < 5:
+                return False
+            trailing_dates = [day for day, _ in days[index - 5:index]]
+            if any(day not in self.vix for day in trailing_dates):
+                return False
+            values = [self.vix[day] for day in trailing_dates]
+            prior_vix = values[-1]
+            prior_five_day_average = sum(values) / len(values)
+            return not (
+                prior_vix > self.cfg.vix_trend_entry_threshold
+                and prior_vix > prior_five_day_average
+            )
+        if not self.cfg.use_vix_rules:
+            return True
+        if index == 0:
+            return False
+        prior_day = days[index - 1][0]
+        return (
+            prior_day in self.vix
+            and self.cfg.entry_vix_min
+            <= self.vix[prior_day]
+            <= self.cfg.entry_vix_max
+        )
 
     def quotes(self, day: date) -> dict[str, tuple[float, float]]:
         ids = [x for p in self.positions for x in (p.long_id, p.short_id)]
@@ -210,13 +249,40 @@ class QqqCallSpreadBacktest:
         self.qqq_shares += shares
         self.cash -= shares * qqq_price
 
-    def open_spread(self, day: date, qqq_price: float, quotes: dict):
+    def open_spread(
+        self,
+        day: date,
+        qqq_price: float,
+        quotes: dict,
+        prior_lookback_return: Optional[float] = None,
+    ):
         selected = self.choose_spread(day)
         if selected is None:
             self.skipped_entries += 1
             self.skipped_entry_dates.append(day)
             return
         long_leg, short_leg, expiry, debit = selected
+        spread_width = float(short_leg[2]) - float(long_leg[2])
+        debit_ratio = debit / spread_width
+        if (
+            self.cfg.debit_ratio_min is not None
+            and debit_ratio < self.cfg.debit_ratio_min
+        ) or (
+            self.cfg.debit_ratio_max is not None
+            and debit_ratio > self.cfg.debit_ratio_max
+        ):
+            self.rule_filtered_entries += 1
+            return
+        if (
+            prior_lookback_return is not None
+            and self.cfg.skip_return_min is not None
+            and self.cfg.skip_return_max is not None
+            and self.cfg.skip_return_min
+            <= prior_lookback_return
+            <= self.cfg.skip_return_max
+        ):
+            self.rule_filtered_entries += 1
+            return
         equity = self.portfolio_value(qqq_price, quotes)
         cost_per_contract = debit * 100
         if self.cfg.fixed_contracts is not None:
@@ -228,6 +294,17 @@ class QqqCallSpreadBacktest:
             contracts = max(1, percentage_size, self.contract_floor)
         fees = 2 * self.cfg.fee_per_contract_per_leg * contracts
         total_cost = cost_per_contract * contracts
+        if self.cfg.max_open_debit_fraction is not None:
+            open_debit = sum(
+                position.debit * 100 * position.contracts
+                for position in self.positions
+            )
+            if (
+                open_debit + total_cost
+                > equity * self.cfg.max_open_debit_fraction
+            ):
+                self.rule_filtered_entries += 1
+                return
         self.raise_cash(total_cost + fees, qqq_price)
         self.cash -= total_cost + fees
 
@@ -311,9 +388,16 @@ class QqqCallSpreadBacktest:
                 reason = "EXP"
             elif week_end and (position.expiration - day).days <= 3:
                 reason = "EXP"
-            elif week_end and value is not None:
+            elif value is not None and (
+                week_end or self.cfg.check_tp_sl_daily
+            ):
                 spread_return = (value - position.debit) / position.debit
-                if self.cfg.use_vix_rules and vix is not None and vix >= self.cfg.vix_exit:
+                if (
+                    week_end
+                    and self.cfg.use_vix_rules
+                    and vix is not None
+                    and vix >= self.cfg.vix_exit
+                ):
                     reason = "VIX"
                 elif spread_return <= self.cfg.stop_return:
                     reason = "SL"
@@ -391,7 +475,13 @@ class QqqCallSpreadBacktest:
             else f"dynamic {self.cfg.entry_equity_fraction:.2%} with ratchet"
         )
         print(f"Position sizing  : {sizing}")
+        print(
+            "TP/SL checks     : "
+            + ("daily" if self.cfg.check_tp_sl_daily else "Friday/week-end")
+        )
         print(f"Skipped entries  : {self.skipped_entries}")
+        print(f"VIX-filtered     : {self.vix_filtered_entries}")
+        print(f"Rule-filtered    : {self.rule_filtered_entries}")
         if self.skipped_entry_dates:
             print(
                 "Missing-chain days: "
@@ -411,16 +501,21 @@ class QqqCallSpreadBacktest:
             quotes = self.quotes(day)
             self.process_exits(day, qqq_price, quotes, week_end, final)
 
-            entry_vix_ok = (
-                not self.cfg.use_vix_rules
-                or (
-                    day in self.vix
-                    and self.cfg.entry_vix_min <= self.vix[day] <= self.cfg.entry_vix_max
-                )
-            )
+            entry_vix_ok = self.entry_vix_allowed(days, index)
             if week_end and not final and entry_vix_ok:
                 quotes = self.quotes(day)
-                self.open_spread(day, qqq_price, quotes)
+                prior_lookback_return = None
+                if index >= self.cfg.return_lookback + 1:
+                    prior_close = days[index - 1][1]
+                    lookback_close = days[
+                        index - self.cfg.return_lookback - 1
+                    ][1]
+                    prior_lookback_return = prior_close / lookback_close - 1
+                self.open_spread(
+                    day, qqq_price, quotes, prior_lookback_return
+                )
+            elif week_end and not final:
+                self.vix_filtered_entries += 1
             self.sweep_cash(qqq_price)
             quotes = self.quotes(day)
             equity = self.portfolio_value(qqq_price, quotes)
@@ -450,6 +545,9 @@ def parse_args():
     )
     parser.add_argument("--output-dir", type=Path, default=root / "results/qqq_local")
     parser.add_argument("--entry-fraction", type=float, default=0.01)
+    parser.add_argument("--initial-cash", type=float, default=12_330.0)
+    parser.add_argument("--long-delta", type=float, default=0.21)
+    parser.add_argument("--short-delta", type=float, default=0.07)
     parser.add_argument(
         "--contracts",
         type=int,
@@ -460,6 +558,30 @@ def parse_args():
     parser.add_argument("--end-date", type=date.fromisoformat, default=date(2025, 6, 30))
     parser.add_argument("--hold-qqq", action="store_true")
     parser.add_argument("--use-vix", action="store_true")
+    parser.add_argument("--vix-entry-min", type=float, default=8.0)
+    parser.add_argument("--vix-entry-max", type=float, default=27.0)
+    parser.add_argument("--vix-exit", type=float, default=28.0)
+    parser.add_argument(
+        "--vix-trend-threshold",
+        type=float,
+        default=None,
+        help=(
+            "Skip an entry only when prior-day VIX is above this level and "
+            "above its trailing five-session average; does not enable VIX exits"
+        ),
+    )
+    parser.add_argument("--debit-ratio-min", type=float, default=None)
+    parser.add_argument("--debit-ratio-max", type=float, default=None)
+    parser.add_argument("--skip-return-min", type=float, default=None)
+    parser.add_argument("--skip-return-max", type=float, default=None)
+    parser.add_argument("--return-lookback", type=int, default=20)
+    parser.add_argument("--max-open-debit-fraction", type=float, default=None)
+    parser.add_argument(
+        "--exit-check-frequency",
+        choices=("friday", "daily"),
+        default="friday",
+        help="Check take-profit/stop-loss daily or only at week-end",
+    )
     parser.add_argument("--quiet", action="store_true", help="Print only the final summary")
     return parser.parse_args()
 
@@ -471,10 +593,24 @@ def main():
     config = Config(
         start_date=args.start_date,
         end_date=args.end_date,
+        initial_cash=args.initial_cash,
         fixed_contracts=args.contracts or None,
         entry_equity_fraction=args.entry_fraction,
+        long_delta=args.long_delta,
+        short_delta=args.short_delta,
         hold_idle_cash_in_qqq=args.hold_qqq,
         use_vix_rules=args.use_vix,
+        vix_trend_entry_threshold=args.vix_trend_threshold,
+        entry_vix_min=args.vix_entry_min,
+        entry_vix_max=args.vix_entry_max,
+        vix_exit=args.vix_exit,
+        debit_ratio_min=args.debit_ratio_min,
+        debit_ratio_max=args.debit_ratio_max,
+        skip_return_min=args.skip_return_min,
+        skip_return_max=args.skip_return_max,
+        return_lookback=args.return_lookback,
+        max_open_debit_fraction=args.max_open_debit_fraction,
+        check_tp_sl_daily=args.exit_check_frequency == "daily",
     )
     QqqCallSpreadBacktest(
         args.data_dir, args.output_dir, config, verbose=not args.quiet
