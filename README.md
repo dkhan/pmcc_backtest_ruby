@@ -93,6 +93,34 @@ Useful alternatives:
 Results are written to `results/qqq_local/trades.csv` and
 `results/qqq_local/daily_equity.csv`.
 
+## Monthly Leveraged ETF Rotation Backtest
+
+Download adjusted daily prices for QQQ, TQQQ, TECL, GLD, IEF, and SHY, then
+run the independent rotation backtest:
+
+```bash
+.venv/bin/python download_rotation_etfs.py
+
+# Deployable test: prior month-end signal, next-session open, 5 bps per side
+.venv/bin/python local_rotation_backtest.py \
+  --execution next_open --cost-bps 5 \
+  --start-date 2016-06-01 --end-date 2026-06-12
+
+# Same-close platform convention, included only for comparison
+.venv/bin/python local_rotation_backtest.py \
+  --execution same_close --cost-bps 0 \
+  --start-date 2016-06-01 --end-date 2026-06-12
+```
+
+The regime is risk-on when adjusted QQQ is above its 200-session average and
+its 126-session return is positive. Risk-on holds the stronger of TQQQ and
+TECL; risk-off holds the stronger of GLD, IEF, and SHY. Strength is the
+63-session percentage return minus the 21-session percentage return. The
+portfolio rebalances monthly and uses a 10% touched stop with gap-aware fills.
+
+Results are written to `results/rotation/trades.csv` and
+`results/rotation/daily_equity.csv`.
+
 ---
 
 ## 📌 Notes

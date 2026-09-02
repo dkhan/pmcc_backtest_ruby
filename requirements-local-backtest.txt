@@ -1,1 +1,6 @@
 duckdb==1.5.5
+yfinance==1.7.0
+pandas==3.0.5
+pyarrow
+scipy==1.18.1
+scikit-learn
