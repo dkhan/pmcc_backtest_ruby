@@ -1,0 +1,649 @@
+.venv/bin/python local_qqq_backtest_v2_sane.py \
+  --data-dir data/historical_options/qqq \
+  --output-dir results/qqq_local_v2_sane \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 25000 \
+  --entry-fraction 0.007
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 601
+Win rate         : 29.45%
+Average net P/L  : $316.77
+Ending equity    : $212,069.00
+Total net P/L    : $187,069.00
+CAGR             : 17.88%
+Max drawdown     : -42.27%
+Total fees       : $14,606.80
+Contract floor   : 12
+Position sizing  : dynamic 0.70% with ratchet
+TP/SL checks     : daily
+Skipped entries  : 51
+VIX-filtered     : 0
+Rule-filtered    : 0
+Open positions   : 2
+Delta rejects    : 50
+Invalid quotes   : 0
+Cash rejects     : 0
+No-chain rejects : 1
+Trades CSV       : results/qqq_local_v2_sane/trades.csv
+Daily equity CSV : results/qqq_local_v2_sane/daily_equity.csv
+16:46:24 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-15 \
+  --contracts 10 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.14 \
+  --debit-ratio-max 0.21 \
+  --skip-return-min 0.07 \
+  --skip-return-max 0.98 \
+  --return-lookback 7 \
+  --exit-check-frequency daily \
+  --quiet \
+  --output-dir results/gods_strategy
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 374
+Win rate         : 31.55%
+Average net P/L  : $571.19
+Ending equity    : $225,956.00
+Total net P/L    : $213,626.00
+CAGR             : 25.18%
+Max drawdown     : -51.15%
+Total fees       : $9,724.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : daily
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 301
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : results/gods_strategy/trades.csv
+Daily equity CSV : results/gods_strategy/daily_equity.csv
+17:01:51 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-15 \
+  --contracts 10 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --output-dir results/gods_strategy
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.90
+Ending equity    : $266,432.00
+Total net P/L    : $254,102.00
+CAGR             : 26.78%
+Max drawdown     : -36.79%
+Total fees       : $10,868.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : results/gods_strategy/trades.csv
+Daily equity CSV : results/gods_strategy/daily_equity.csv
+17:06:41 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-15 \
+  --contracts 10 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --output-dir results/gods_strategy
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.90
+Ending equity    : $266,432.00
+Total net P/L    : $254,102.00
+CAGR             : 26.78%
+Max drawdown     : -36.79%
+Total fees       : $10,868.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : results/gods_strategy/trades.csv
+Daily equity CSV : results/gods_strategy/daily_equity.csv
+17:16:28 ~/Git/pmcc_backtest_ruby main $ open results/gods_strategy/daily_equity.csv
+17:17:13 ~/Git/pmcc_backtest_ruby main $ open results/qqq_local_v2_sane/equity_chart.svg
+The file /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local_v2_sane/equity_chart.svg does not exist.
+17:18:17 ~/Git/pmcc_backtest_ruby main $ cd results
+17:18:36 ~/Git/pmcc_backtest_ruby/results main $ ll
+total 208
+drwxr-xr-x@ 4 khand  staff     128 Aug 31 23:24 gods_strategy
+drwxr-xr-x@ 4 khand  staff     128 Aug 31 17:58 qqq_local
+drwxr-xr-x@ 4 khand  staff     128 Aug 31 18:23 qqq_local_hold
+drwxr-xr-x@ 4 khand  staff     128 Sep  1 01:19 qqq_local_v2_sane
+drwxr-xr-x@ 4 khand  staff     128 Aug 31 18:23 qqq_local_vix
+drwxr-xr-x@ 4 khand  staff     128 Aug 31 18:23 qqq_local_vix_hold
+-rw-r--r--@ 1 khand  staff  102579 Jun 16  2025 trades.csv
+17:18:38 ~/Git/pmcc_backtest_ruby/results main $ cd gods_strategy
+17:18:43 ~/Git/pmcc_backtest_ruby/results/gods_strategy main $ ll
+total 528
+-rw-r--r--@ 1 khand  staff  129015 Sep  1 17:16 daily_equity.csv
+-rw-r--r--@ 1 khand  staff   80512 Sep  1 17:16 trades.csv
+17:18:44 ~/Git/pmcc_backtest_ruby/results/gods_strategy main $ cd ../..
+17:23:01 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-15 \
+  --contracts 10 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --output-dir results/gods_strategy
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $608.04
+Ending equity    : $266,492.00
+Total net P/L    : $254,162.00
+CAGR             : 26.78%
+Max drawdown     : -36.79%
+Total fees       : $10,868.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : results/gods_strategy/trades.csv
+Daily equity CSV : results/gods_strategy/daily_equity.csv
+Equity chart     : results/gods_strategy/equity_chart.svg
+17:26:40 ~/Git/pmcc_backtest_ruby main $ open results/gods_strategy/equity_chart.svg
+17:27:34 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-15 \
+  --contracts 10 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency daily \
+  --output-dir results/gods_strategy  \
+  --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 30.86%
+Average net P/L  : $552.52
+Ending equity    : $243,282.00
+Total net P/L    : $230,952.00
+CAGR             : 25.90%
+Max drawdown     : -47.28%
+Total fees       : $10,868.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : daily
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : results/gods_strategy/trades.csv
+Daily equity CSV : results/gods_strategy/daily_equity.csv
+Equity chart     : results/gods_strategy/equity_chart.svg
+17:36:25 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 25000 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --hold-qqq \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.11
+Ending equity    : $769,666.50
+Total net P/L    : $744,666.50
+CAGR             : 30.18%
+Max drawdown     : -46.97%
+Total fees       : $10,868.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/trades.csv
+Daily equity CSV : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/daily_equity.csv
+Equity chart     : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/equity_chart.svg
+17:49:19 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 25000 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.90
+Ending equity    : $279,102.00
+Total net P/L    : $254,102.00
+CAGR             : 20.40%
+Max drawdown     : -32.97%
+Total fees       : $10,868.00
+Contract floor   : 10
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/trades.csv
+Daily equity CSV : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/daily_equity.csv
+Equity chart     : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/equity_chart.svg
+17:56:13 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 12_330 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+>
+18:02:40 ~/Git/pmcc_backtest_ruby main $
+18:02:40 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 12_330 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+> --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.11
+Ending equity    : $266,102.00
+Total net P/L    : $253,772.00
+CAGR             : 26.67%
+Max drawdown     : -36.79%
+Total fees       : $10,868.00
+Contract floor   : 10
+QQQ allocation   : disabled
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/trades.csv
+Daily equity CSV : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/daily_equity.csv
+Equity chart     : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/equity_chart.svg
+
+18:08:46 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 7_000 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.90
+Ending equity    : $261,102.00
+Total net P/L    : $254,102.00
+CAGR             : 32.12%
+Max drawdown     : -51.83%
+Total fees       : $10,868.00
+Contract floor   : 10
+QQQ allocation   : disabled
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/trades.csv
+Daily equity CSV : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/daily_equity.csv
+Equity chart     : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/equity_chart.svg
+
+22:58:37 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2013-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 7_000 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --quiet \
+  --hold-qqq \
+  --qqq-equity-percentage 50
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 418
+Win rate         : 32.54%
+Average net P/L  : $607.25
+Ending equity    : $415,116.55
+Total net P/L    : $408,116.55
+CAGR             : 36.92%
+Max drawdown     : -51.73%
+Total fees       : $10,868.00
+Contract floor   : 10
+QQQ allocation   : 50% target (buy-only)
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 257
+Missing-chain days: 2015-12-04
+Open positions   : 0
+Trades CSV       : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/trades.csv
+Daily equity CSV : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/daily_equity.csv
+Equity chart     : /Users/khand/Git/pmcc_backtest_ruby/results/qqq_local/equity_chart.svg
+
+23:15:42 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2023-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 100_000 \
+  --contracts 10 \
+  --entry-fraction 0.01 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.12 \
+  --debit-ratio-max 0.20 \
+  --skip-return-min 0.03 \
+  --skip-return-max 0.07 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --quiet \
+  --hold-qqq \
+  --qqq-equity-percentage 50
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 86
+Win rate         : 34.88%
+Average net P/L  : $1,471.67
+Ending equity    : $308,185.07
+Total net P/L    : $208,185.07
+CAGR             : 45.61%
+Max drawdown     : -28.30%
+Total fees       : $2,236.00
+Contract floor   : 10
+QQQ allocation   : 50% target (buy-only)
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 0
+VIX-filtered     : 0
+Rule-filtered    : 68
+Open positions   : 0
+
+
+23:21:22 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py \
+  --start-date 2023-01-02 \
+  --end-date 2025-12-31 \
+  --initial-cash 100_000 \
+  --contracts 10 \
+  --entry-fraction 0.02 \
+  --long-delta 0.21 \
+  --short-delta 0.07 \
+  --debit-ratio-min 0.01 \
+  --debit-ratio-max 1 \
+  --skip-return-min 0.1 \
+  --skip-return-max 1 \
+  --return-lookback 20 \
+  --exit-check-frequency friday \
+  --quiet \
+  --hold-qqq \
+  --qqq-equity-percentage 50
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 148
+Win rate         : 29.73%
+Average net P/L  : $828.93
+Ending equity    : $311,594.68
+Total net P/L    : $211,594.68
+CAGR             : 46.15%
+Max drawdown     : -36.29%
+Total fees       : $3,848.00
+Contract floor   : 10
+QQQ allocation   : 50% target (buy-only)
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 0
+VIX-filtered     : 0
+Rule-filtered    : 6
+Open positions   : 0
+
+
+
+23:41:10 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py --contracts 10 --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 651
+Win rate         : 29.49%
+Average net P/L  : $399.53
+Ending equity    : $272,424.00
+Total net P/L    : $260,094.00
+CAGR             : 28.12%
+Max drawdown     : -49.46%
+Total fees       : $16,926.00
+Contract floor   : 10
+QQQ allocation   : disabled
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 0
+Missing-chain days: 2015-12-04
+Open positions   : 0
+
+
+
+# NO EXITS: NO Stop loss NO Take profit
+
+23:45:24 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py --contracts 10 --quiet
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 651
+Win rate         : 31.80%
+Average net P/L  : $424.94
+Ending equity    : $288,964.00
+Total net P/L    : $276,634.00
+CAGR             : 28.73%
+Max drawdown     : -48.30%
+Total fees       : $16,926.00
+Contract floor   : 10
+QQQ allocation   : disabled
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 0
+Missing-chain days: 2015-12-04
+Open positions   : 0
+
+
+
+.venv/bin/python local_qqq_backtest.py --contracts 10 --hold-qqq --qqq-equity-percentage 50 --quiet
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 651
+Win rate         : 31.80%
+Average net P/L  : $425.52
+Ending equity    : $455,238.08
+Total net P/L    : $442,908.08
+CAGR             : 33.50%
+Max drawdown     : -51.10%
+Total fees       : $16,926.00
+Contract floor   : 10
+QQQ allocation   : 50% target (buy-only)
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 0
+Missing-chain days: 2015-12-04
+Open positions   : 0
+
+
+.venv/bin/python local_qqq_backtest.py --contracts 10 --hold-qqq --qqq-equity-percentage 90 --quiet
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 651
+Win rate         : 31.80%
+Average net P/L  : $425.52
+Ending equity    : $616,730.80
+Total net P/L    : $604,400.80
+CAGR             : 36.78%
+Max drawdown     : -53.97%
+Total fees       : $16,926.00
+Contract floor   : 10
+QQQ allocation   : 90% target (buy-only)
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 1
+VIX-filtered     : 0
+Rule-filtered    : 0
+Missing-chain days: 2015-12-04
+Open positions   : 0
+
+.venv/bin/python local_qqq_backtest.py --contracts 10 --hold-qqq --qqq-equity-percentage 90 --quiet --start-date 2023-01-02 --end-date 2025-12-31 --initial-cash 250_000
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 154
+Win rate         : 30.52%
+Average net P/L  : $825.75
+Ending equity    : $730,284.92
+Total net P/L    : $480,284.92
+CAGR             : 43.03%
+Max drawdown     : -31.46%
+Total fees       : $4,004.00
+Contract floor   : 10
+QQQ allocation   : 90% target (buy-only)
+Position sizing  : fixed 10
+TP/SL checks     : Friday/week-end
+Skipped entries  : 0
+VIX-filtered     : 0
+Rule-filtered    : 0
+Open positions   : 0
+
+
+14:08:53 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py --contracts 7 --hold-qqq --qqq-equity-percentage 77 --quiet --start-date 2012-12-28 --end-date 2025-12-28 --initial-cash 7_000
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 675
+Win rate         : 30.81%
+Average net P/L  : $249.09
+Ending equity    : $399,262.21
+Total net P/L    : $392,262.21
+CAGR             : 36.49%
+Max drawdown     : -53.17%
+Total fees       : $12,285.00
+Contract floor   : 7
+QQQ allocation   : 77% target (buy-only)
+Position sizing  : fixed 7
+TP/SL checks     : Friday/week-end
+Skipped entries  : 2
+VIX-filtered     : 0
+Rule-filtered    : 0
+Missing-chain days: 2012-12-28, 2015-12-04
+Open positions   : 0
+
+14:12:30 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_qqq_backtest.py --contracts 7 --hold-qqq --qqq-equity-percentage 77 --quiet --start-date 2012-12-28 --end-date 2025-12-28 --initial-cash 7_000
+
+=== LOCAL QQQ 21/7 CALL-SPREAD SUMMARY ===
+Completed trades : 675
+Win rate         : 30.81%
+Average net P/L  : $251.61
+Ending equity    : $403,899.95
+Total net P/L    : $396,899.95
+CAGR             : 36.61%
+Max drawdown     : -52.91%
+Total fees       : $10,584.00
+Contract floor   : 7
+QQQ allocation   : 77% target (buy-only)
+Position sizing  : fixed 7
+TP/SL checks     : Friday/week-end
+Skipped entries  : 2
+VIX-filtered     : 0
+Rule-filtered    : 0
+Missing-chain days: 2012-12-28, 2015-12-04
+Open positions   : 0

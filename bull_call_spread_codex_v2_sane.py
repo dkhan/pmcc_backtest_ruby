@@ -32,7 +32,7 @@ class QqqTastytradeCallSpread(QCAlgorithm):
 
     def Initialize(self):
         self.SetStartDate(2013, 1, 2)
-        self.SetEndDate(2025, 6, 30)
+        self.SetEndDate(2026, 8, 30)
         self.SetCash(25_000)
         self.SetTimeZone(TimeZones.NewYork)
 
