@@ -4,8 +4,8 @@ Source rules:
 https://finlab.finance/en/blog/us-etf-rotation-strategy
 
 This is a local port, not an original QuantConnect file published by FinLab.
-It uses the prior completed daily bar and trades just after the next month
-opens, avoiding a same-close look-ahead assumption.
+It reproduces the paper's zero-fee, monthly close-execution convention as
+closely as LEAN permits while using only completed prior-session signals.
 """
 
 from AlgorithmImports import *
@@ -15,6 +15,7 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
     RISK_TICKERS = ("TQQQ", "TECL")
     DEFENSIVE_TICKERS = ("IEF", "GLD", "SHY")
     STOP_LOSS = 0.10
+    HISTORY_BARS = 220
 
     def Initialize(self):
         self.SetStartDate(2016, 6, 1)
@@ -31,11 +32,21 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
                 dataNormalizationMode=DataNormalizationMode.Adjusted,
             )
             security.SetFeeModel(ConstantFeeModel(0))
+            # Holdings remain capped at 100%. The higher brokerage leverage is
+            # used only so LEAN can accept simultaneous MOC sell/buy tickets;
+            # both fill at the same close and never create 3x account exposure.
+            security.SetLeverage(3)
             self.symbols[ticker] = security.Symbol
 
         self.qqq = self.symbols["QQQ"]
         self.stop_ticket = None
         self.pending_entry_symbol = None
+        self.pending_stop_reset_symbol = None
+        self.invalid_order_count = 0
+
+        # Populate Security.Price and the full signal lookback before the first
+        # scheduled rebalance. This fixes the missing June 2016 entry.
+        self.SetWarmUp(self.HISTORY_BARS, Resolution.Daily)
 
         # The first tradable session of each month uses data through the prior
         # completed session. This is the executable counterpart to FinLab's
@@ -47,8 +58,14 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
         )
 
     def Rebalance(self):
+        if self.IsWarmingUp:
+            return
+        if any(not self.Securities[symbol].HasData for symbol in self.symbols.values()):
+            self.Error(f"Skipped rebalance on {self.Time:%Y-%m-%d}: price not ready")
+            return
+
         history = self.History(
-            list(self.symbols.values()), 220, Resolution.Daily
+            list(self.symbols.values()), self.HISTORY_BARS, Resolution.Daily
         )
         if history.empty:
             return
@@ -87,12 +104,22 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
 
         if current == target:
             # FinLab resets its percentage stop with each monthly resample.
-            self.PlaceStop(target, self.Portfolio[target].Quantity)
+            # Wait for this session's close instead of using the stale prior
+            # close visible at 09:31 with daily-resolution subscriptions.
+            self.pending_stop_reset_symbol = target
             return
 
-        self.Liquidate(tag="Monthly rotation")
         self.pending_entry_symbol = target
-        self.SetHoldings(target, 1.0, tag=f"Monthly rotation to {target_ticker}")
+        # liquidateExistingHoldings=True submits the old reduction and new
+        # target together. Daily-resolution intraday market orders become MOC,
+        # matching the paper's trade_at_price="close" convention.
+        self.SetHoldings(
+            target,
+            1.0,
+            True,
+            False,
+            f"Monthly rotation to {target_ticker}",
+        )
 
     @staticmethod
     def MomentumScore(close):
@@ -102,6 +129,16 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
         return return_value_63 - return_value_21
 
     def OnOrderEvent(self, order_event):
+        if order_event.Status == OrderStatus.Invalid:
+            self.invalid_order_count += 1
+            self.Error(
+                f"INVALID ORDER {order_event.OrderId} on {self.Time:%Y-%m-%d}: "
+                f"{order_event.Message}"
+            )
+            if order_event.Symbol == self.pending_entry_symbol:
+                self.pending_entry_symbol = None
+            return
+
         if order_event.Status != OrderStatus.Filled:
             return
 
@@ -116,6 +153,19 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
 
         if self.stop_ticket is not None and order_event.OrderId == self.stop_ticket.OrderId:
             self.stop_ticket = None
+
+    def OnEndOfDay(self, symbol):
+        if symbol != self.pending_stop_reset_symbol:
+            return
+        self.pending_stop_reset_symbol = None
+        quantity = self.Portfolio[symbol].Quantity
+        if quantity > 0:
+            self.PlaceStop(symbol, quantity)
+
+    def OnEndOfAlgorithm(self):
+        self.Log(f"Invalid order count: {self.invalid_order_count}")
+        if self.invalid_order_count:
+            self.Error("Backtest is invalid for comparison: one or more orders failed")
 
     def PlaceStop(self, symbol, quantity):
         if quantity <= 0:
@@ -134,4 +184,3 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
         if self.stop_ticket.Status not in (OrderStatus.Filled, OrderStatus.Canceled):
             self.stop_ticket.Cancel("Monthly stop reset")
         self.stop_ticket = None
-
