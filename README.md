@@ -121,6 +121,12 @@ portfolio rebalances monthly and uses a 10% touched stop with gap-aware fills.
 Results are written to `results/rotation/trades.csv` and
 `results/rotation/daily_equity.csv`.
 
+For QuantConnect, create a Python project and paste the contents of
+`quantconnect_finlab_rotation.py` into `main.py`. This is a LEAN port of the
+published FinLab rules; it uses the prior completed bar and trades after the
+next month opens, because the original FinLab SDK's same-close execution
+engine is not available on QuantConnect.
+
 ---
 
 ## 📌 Notes
