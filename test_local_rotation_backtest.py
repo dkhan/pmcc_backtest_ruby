@@ -7,6 +7,7 @@ from local_rotation_backtest import (
     RotationBacktest,
     build_signals,
     month_end_dates,
+    qc_rebalance_dates,
     stop_fill,
 )
 
@@ -42,6 +43,12 @@ class RotationHelpersTest(unittest.TestCase):
         self.assertEqual(stop_fill(95.0, 89.0, 90.0), 90.0)
         self.assertEqual(stop_fill(87.0, 85.0, 90.0), 87.0)
         self.assertIsNone(stop_fill(95.0, 91.0, 90.0))
+
+    def test_first_monday_includes_month_start_when_it_is_monday(self):
+        index = pd.bdate_range("2024-07-01", "2024-08-09")
+        dates = qc_rebalance_dates(index, "first_monday", index[0])
+        self.assertIn(pd.Timestamp("2024-07-01"), dates)
+        self.assertIn(pd.Timestamp("2024-08-05"), dates)
 
     def test_signal_selects_strongest_risk_and_defensive_assets(self):
         prices = self.rising_prices()

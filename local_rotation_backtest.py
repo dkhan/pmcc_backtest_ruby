@@ -48,6 +48,7 @@ class Config:
     start_date: date = date(2016, 6, 1)
     end_date: Optional[date] = None
     execution: str = "next_open"
+    rebalance_schedule: str = "month_start"
     stop_loss: float = 0.10
     cost_bps: float = 0.0
 
@@ -121,6 +122,42 @@ def month_end_dates(index: pd.DatetimeIndex) -> set[pd.Timestamp]:
         for i in range(len(index))
         if i == len(index) - 1 or periods[i] != periods[i + 1]
     }
+
+
+def qc_rebalance_dates(
+    index: pd.DatetimeIndex, schedule: str, anchor: pd.Timestamp
+) -> set[pd.Timestamp]:
+    """Return executable sessions for QC-style close rebalances."""
+    if schedule == "month_start":
+        periods = index.to_period("M")
+        candidates = {index[i] for i in range(len(index)) if i == 0 or periods[i] != periods[i - 1]}
+    elif schedule == "first_monday":
+        candidates = set()
+        for period in index.to_period("M").unique():
+            month_days = index[index.to_period("M") == period]
+            month_start = period.start_time
+            first_calendar_monday = month_start + pd.Timedelta(
+                days=(7 - month_start.weekday()) % 7
+            )
+            eligible = month_days[month_days >= first_calendar_monday]
+            if len(eligible):
+                candidates.add(eligible[0])
+    elif schedule == "weekly_monday":
+        periods = index.to_period("W-SUN")
+        candidates = {index[i] for i in range(len(index)) if i == 0 or periods[i] != periods[i - 1]}
+    elif schedule in ("every_2_months", "every_3_months"):
+        step = 2 if schedule == "every_2_months" else 3
+        periods = index.to_period("M")
+        month_starts = [index[i] for i in range(len(index)) if i == 0 or periods[i] != periods[i - 1]]
+        anchor_number = anchor.year * 12 + anchor.month
+        candidates = {
+            day
+            for day in month_starts
+            if ((day.year * 12 + day.month) - anchor_number) % step == 0
+        }
+    else:
+        raise ValueError(f"Unknown rebalance schedule: {schedule}")
+    return {day for day in candidates if day >= anchor}
 
 
 def stop_fill(open_price: float, low_price: float, stop_price: float) -> Optional[float]:
@@ -227,6 +264,7 @@ class RotationBacktest:
         if days.empty:
             raise RuntimeError("No common ETF sessions in the requested period")
         ends = month_end_dates(days)
+        qc_dates = qc_rebalance_dates(days, self.cfg.rebalance_schedule, days[0])
         pending_target: Optional[str] = None
         prior_days = common[common < days[0]]
         if self.cfg.execution in ("next_open", "qc_close") and len(prior_days):
@@ -234,6 +272,10 @@ class RotationBacktest:
             pending_target = initial_target if isinstance(initial_target, str) else None
 
         for day_number, day in enumerate(days):
+            if self.cfg.execution == "qc_close" and day in qc_dates:
+                history_days = common[common < day]
+                target = self.signals.at[history_days[-1], "target"] if len(history_days) else None
+                pending_target = target if isinstance(target, str) else None
             entered_at_open = False
             if self.cfg.execution == "next_open" and pending_target is not None:
                 self.rebalance(day, pending_target, "open")
@@ -271,7 +313,7 @@ class RotationBacktest:
                     if self.cfg.execution == "same_close":
                         # Reproduce FinLab's same-bar month-end close convention.
                         self.rebalance(day, target, "close")
-                    else:
+                    elif self.cfg.execution == "next_open":
                         pending_target = target
 
             self.daily.append(
@@ -355,6 +397,18 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--stop-loss", type=float, default=0.10)
+    parser.add_argument(
+        "--rebalance-schedule",
+        choices=(
+            "month_start",
+            "first_monday",
+            "every_2_months",
+            "every_3_months",
+            "weekly_monday",
+        ),
+        default="month_start",
+        help="QC-close management schedule (default: month_start)",
+    )
     parser.add_argument("--cost-bps", type=float, default=0.0)
     return parser.parse_args()
 
@@ -370,6 +424,7 @@ def main() -> None:
         start_date=args.start_date,
         end_date=args.end_date,
         execution=args.execution,
+        rebalance_schedule=args.rebalance_schedule,
         stop_loss=args.stop_loss,
         cost_bps=args.cost_bps,
     )
@@ -383,6 +438,7 @@ def main() -> None:
     print("\n=== MONTHLY LEVERAGED ETF ROTATION ===")
     print(f"Period           : {daily.iloc[0]['date']} to {daily.iloc[-1]['date']}")
     print(f"Execution        : {args.execution}")
+    print(f"Rebalance        : {args.rebalance_schedule}")
     print(f"Trading costs    : {args.cost_bps:.2f} bps per side")
     print(f"Ending equity    : ${strategy['ending']:,.2f}")
     print(f"CAGR             : {strategy['cagr']:.2%}")
