@@ -1,6 +1,29 @@
 #!/usr/bin/env python3
 """Backtest the monthly QQQ-regime leveraged ETF rotation strategy."""
 
+# .venv/bin/python local_rotation_backtest.py \
+#   --execution qc_close \
+#   --start-date 2016-06-01 \
+#   --end-date 2026-06-12 \
+#   --initial-cash 100000 \
+#   --output-dir results/rotation_qc_close
+
+# === MONTHLY LEVERAGED ETF ROTATION ===
+# Period           : 2016-06-01 to 2026-06-12
+# Execution        : qc_close
+# Trading costs    : 0.00 bps per side
+# Ending equity    : $7,460,461.09
+# CAGR             : 53.72%
+# Max drawdown     : -35.46%
+# Volatility       : 39.88%
+# Daily Sharpe     : 1.28
+# Trade actions    : 126
+# Stop exits       : 30
+# QQQ buy/hold     : CAGR 21.44%, max DD -35.12%
+# TQQQ buy/hold    : CAGR 43.47%, max DD -81.66%
+# Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+# Trades CSV       : results/rotation_qc_close/trades.csv
+
 from __future__ import annotations
 
 import argparse
@@ -206,20 +229,38 @@ class RotationBacktest:
         ends = month_end_dates(days)
         pending_target: Optional[str] = None
         prior_days = common[common < days[0]]
-        if self.cfg.execution == "next_open" and len(prior_days):
+        if self.cfg.execution in ("next_open", "qc_close") and len(prior_days):
             initial_target = self.signals.at[prior_days[-1], "target"]
             pending_target = initial_target if isinstance(initial_target, str) else None
 
-        for day in days:
+        for day_number, day in enumerate(days):
             entered_at_open = False
             if self.cfg.execution == "next_open" and pending_target is not None:
                 self.rebalance(day, pending_target, "open")
                 pending_target = None
                 entered_at_open = True
 
-            # A next-open entry can be stopped during that same session.
-            # A same-close entry cannot encounter the day's earlier high/low.
-            self.check_stop(day)
+            if self.cfg.execution == "qc_close" and pending_target is not None:
+                # LEAN cancels the working stop at 09:31 and daily-resolution
+                # market orders become market-on-close orders. Consequently,
+                # the old stop cannot trigger during this session and the
+                # rebalance is valued at this session's close.
+                target = pending_target
+                pending_target = None
+                if self.symbol == target:
+                    # With a daily subscription, Security.Price observed by
+                    # OnEndOfDay is the prior completed bar in the reference QC
+                    # run. Preserve that empirically observed stop-reset rule.
+                    reference_day = days[day_number - 1] if day_number else prior_days[-1]
+                    self.stop_reference = float(
+                        self.prices[target].at[reference_day, "close"]
+                    )
+                else:
+                    self.rebalance(day, target, "close")
+            else:
+                # A next-open entry can be stopped during that same session.
+                # Close entries cannot encounter the day's earlier high/low.
+                self.check_stop(day)
 
             is_initial_same_close = (
                 self.cfg.execution == "same_close" and day == days[0]
@@ -246,7 +287,10 @@ class RotationBacktest:
             )
 
         final_day = days[-1]
-        if self.symbol is not None:
+        # QuantConnect marks an existing holding at the backtest end; it does
+        # not synthesize a liquidation order. Retain the legacy forced exit in
+        # the two original local modes for backward-compatible CSV output.
+        if self.symbol is not None and self.cfg.execution != "qc_close":
             self.sell(
                 final_day,
                 float(self.prices[self.symbol].at[final_day, "close"]),
@@ -302,7 +346,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", type=date.fromisoformat, default=date(2016, 6, 1))
     parser.add_argument("--end-date", type=date.fromisoformat)
     parser.add_argument(
-        "--execution", choices=("same_close", "next_open"), default="next_open"
+        "--execution",
+        choices=("same_close", "next_open", "qc_close"),
+        default="next_open",
+        help=(
+            "same_close uses month-end closes; next_open trades the following "
+            "open; qc_close uses prior-session signals and first-session closes"
+        ),
     )
     parser.add_argument("--stop-loss", type=float, default=0.10)
     parser.add_argument("--cost-bps", type=float, default=0.0)

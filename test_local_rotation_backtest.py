@@ -60,6 +60,34 @@ class RotationHelpersTest(unittest.TestCase):
         engine.sell(day, 100.0, "TEST")
         self.assertAlmostEqual(engine.cash, 1_000.0 / 1.001 * 0.999, places=8)
 
+    def test_qc_close_trades_first_session_close_and_skips_old_stop(self):
+        prices = self.rising_prices()
+        days = prices["QQQ"].index
+        start = days[-20]
+        prior = days[-21]
+        # Make the selected asset cross its old stop intraday on the rebalance
+        # session. QC has already cancelled that stop, so it must remain held.
+        prices["TQQQ"].loc[start, "low"] = 1.0
+        engine = RotationBacktest(
+            prices,
+            Config(start_date=start.date(), end_date=start.date(), execution="qc_close"),
+        )
+        engine.signals.loc[prior, "target"] = "TQQQ"
+        engine.symbol = "TQQQ"
+        engine.shares = 1.0
+        engine.cash = 0.0
+        engine.stop_reference = 100.0
+
+        daily, trades = engine.run()
+
+        self.assertFalse((trades.get("reason", pd.Series(dtype=str)) == "STOP").any())
+        self.assertTrue(trades.empty)
+        self.assertEqual(daily.iloc[0]["holding"], "TQQQ")
+        self.assertAlmostEqual(
+            float(daily.iloc[0]["stop_reference"]),
+            float(prices["TQQQ"].at[prior, "close"]),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
