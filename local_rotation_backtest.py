@@ -49,6 +49,8 @@ class Config:
     end_date: Optional[date] = None
     execution: str = "next_open"
     rebalance_schedule: str = "month_start"
+    daily_qqq_risk_off: bool = False
+    risk_selection: str = "strongest"
     stop_loss: float = 0.10
     cost_bps: float = 0.0
 
@@ -75,8 +77,16 @@ def load_prices(data_dir: Path) -> dict[str, pd.DataFrame]:
     return prices
 
 
-def build_signals(prices: dict[str, pd.DataFrame]) -> pd.DataFrame:
+def build_signals(
+    prices: dict[str, pd.DataFrame], risk_selection: str = "strongest"
+) -> pd.DataFrame:
     """Build signals using only information available at each session close."""
+    valid_risk_selections = {"strongest", "weakest", "laggard_3d"}
+    if risk_selection not in valid_risk_selections:
+        raise ValueError(
+            f"Unknown risk selection {risk_selection!r}; expected one of "
+            f"{sorted(valid_risk_selections)}"
+        )
     close = pd.concat(
         {symbol: prices[symbol]["close"] for symbol in SYMBOLS}, axis=1
     ).sort_index()
@@ -97,6 +107,7 @@ def build_signals(prices: dict[str, pd.DataFrame]) -> pd.DataFrame:
         close[list(RISK_ASSETS)].pct_change(63, fill_method=None)
         - close[list(RISK_ASSETS)].pct_change(21, fill_method=None)
     )
+    risk_returns_3d = close[list(RISK_ASSETS)].pct_change(3, fill_method=None)
     defensive_momentum = (
         close[list(DEFENSIVE_ASSETS)].pct_change(63, fill_method=None)
         - close[list(DEFENSIVE_ASSETS)].pct_change(21, fill_method=None)
@@ -105,7 +116,22 @@ def build_signals(prices: dict[str, pd.DataFrame]) -> pd.DataFrame:
         available = row.dropna()
         return str(available.idxmax()) if not available.empty else None
 
-    result["risk_pick"] = risk_returns.apply(available_winner, axis=1)
+    def available_risk_pick(row: pd.Series) -> Optional[str]:
+        available = row.dropna()
+        if available.empty:
+            return None
+        if risk_selection == "weakest":
+            return str(available.idxmin())
+        return str(available.idxmax())
+
+    risk_scores = risk_returns_3d if risk_selection == "laggard_3d" else risk_returns
+    if risk_selection == "laggard_3d":
+        result["risk_pick"] = risk_scores.apply(
+            lambda row: str(row.dropna().idxmin()) if not row.dropna().empty else None,
+            axis=1,
+        )
+    else:
+        result["risk_pick"] = risk_scores.apply(available_risk_pick, axis=1)
     result["defensive_pick"] = defensive_momentum.apply(available_winner, axis=1)
     result["target"] = result["defensive_pick"]
     result.loc[result["risk_on"], "target"] = result.loc[
@@ -171,7 +197,7 @@ class RotationBacktest:
     def __init__(self, prices: dict[str, pd.DataFrame], config: Config):
         self.prices = prices
         self.cfg = config
-        self.signals = build_signals(prices)
+        self.signals = build_signals(prices, config.risk_selection)
         self.cash = config.initial_cash
         self.symbol: Optional[str] = None
         self.shares = 0.0
@@ -228,7 +254,13 @@ class RotationBacktest:
             }
         )
 
-    def rebalance(self, day: pd.Timestamp, target: str, field: str) -> None:
+    def rebalance(
+        self,
+        day: pd.Timestamp,
+        target: str,
+        field: str,
+        reason: str = "REBALANCE",
+    ) -> None:
         price = float(self.prices[target].at[day, field])
         if self.symbol == target:
             # FinLab evaluates the resampled position as a fresh monthly lot,
@@ -237,8 +269,8 @@ class RotationBacktest:
             return
         if self.symbol is not None:
             old_price = float(self.prices[self.symbol].at[day, field])
-            self.sell(day, old_price, "REBALANCE")
-        self.buy(day, target, price, "REBALANCE")
+            self.sell(day, old_price, reason)
+        self.buy(day, target, price, reason)
 
     def check_stop(self, day: pd.Timestamp) -> None:
         if self.symbol is None or self.stop_reference is None:
@@ -272,10 +304,25 @@ class RotationBacktest:
             pending_target = initial_target if isinstance(initial_target, str) else None
 
         for day_number, day in enumerate(days):
+            pending_reason = "REBALANCE"
             if self.cfg.execution == "qc_close" and day in qc_dates:
                 history_days = common[common < day]
                 target = self.signals.at[history_days[-1], "target"] if len(history_days) else None
                 pending_target = target if isinstance(target, str) else None
+            elif (
+                self.cfg.execution == "qc_close"
+                and self.cfg.daily_qqq_risk_off
+                and self.symbol in RISK_ASSETS
+            ):
+                history_days = common[common < day]
+                if len(history_days):
+                    prior_signal = self.signals.loc[history_days[-1]]
+                    defensive_pick = prior_signal["defensive_pick"]
+                    if not bool(prior_signal["risk_on"]) and isinstance(
+                        defensive_pick, str
+                    ):
+                        pending_target = defensive_pick
+                        pending_reason = "DAILY_QQQ_RISK_OFF"
             entered_at_open = False
             if self.cfg.execution == "next_open" and pending_target is not None:
                 self.rebalance(day, pending_target, "open")
@@ -298,7 +345,7 @@ class RotationBacktest:
                         self.prices[target].at[reference_day, "close"]
                     )
                 else:
-                    self.rebalance(day, target, "close")
+                    self.rebalance(day, target, "close", pending_reason)
             else:
                 # A next-open entry can be stopped during that same session.
                 # Close entries cannot encounter the day's earlier high/low.
@@ -409,6 +456,23 @@ def parse_args() -> argparse.Namespace:
         default="month_start",
         help="QC-close management schedule (default: month_start)",
     )
+    parser.add_argument(
+        "--daily-qqq-risk-off",
+        action="store_true",
+        help=(
+            "check QQQ's regime after every close and rotate a risk holding "
+            "to the prior session's defensive pick at the next close"
+        ),
+    )
+    parser.add_argument(
+        "--risk-selection",
+        choices=("strongest", "weakest", "laggard_3d"),
+        default="strongest",
+        help=(
+            "strongest/weakest use 63-day minus 21-day momentum; laggard_3d "
+            "implements FinLab's mean-reversion rule (default: strongest)"
+        ),
+    )
     parser.add_argument("--cost-bps", type=float, default=0.0)
     return parser.parse_args()
 
@@ -419,12 +483,16 @@ def main() -> None:
         raise SystemExit("--stop-loss must be between 0 and 1")
     if args.initial_cash <= 0 or args.cost_bps < 0:
         raise SystemExit("--initial-cash must be positive and --cost-bps non-negative")
+    if args.daily_qqq_risk_off and args.execution != "qc_close":
+        raise SystemExit("--daily-qqq-risk-off requires --execution qc_close")
     config = Config(
         initial_cash=args.initial_cash,
         start_date=args.start_date,
         end_date=args.end_date,
         execution=args.execution,
         rebalance_schedule=args.rebalance_schedule,
+        daily_qqq_risk_off=args.daily_qqq_risk_off,
+        risk_selection=args.risk_selection,
         stop_loss=args.stop_loss,
         cost_bps=args.cost_bps,
     )
@@ -439,6 +507,11 @@ def main() -> None:
     print(f"Period           : {daily.iloc[0]['date']} to {daily.iloc[-1]['date']}")
     print(f"Execution        : {args.execution}")
     print(f"Rebalance        : {args.rebalance_schedule}")
+    print(
+        "Daily QQQ exit   : "
+        + ("enabled" if args.daily_qqq_risk_off else "disabled")
+    )
+    print(f"Risk selection   : {args.risk_selection}")
     print(f"Trading costs    : {args.cost_bps:.2f} bps per side")
     print(f"Ending equity    : ${strategy['ending']:,.2f}")
     print(f"CAGR             : {strategy['cagr']:.2%}")

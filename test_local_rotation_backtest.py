@@ -59,6 +59,25 @@ class RotationHelpersTest(unittest.TestCase):
         self.assertEqual(last["defensive_pick"], "GLD")
         self.assertEqual(last["target"], "TQQQ")
 
+    def test_signal_can_select_weakest_risk_asset(self):
+        prices = self.rising_prices()
+        last = build_signals(prices, risk_selection="weakest").iloc[-1]
+        self.assertTrue(last["risk_on"])
+        self.assertEqual(last["risk_pick"], "TECL")
+        self.assertEqual(last["defensive_pick"], "GLD")
+        self.assertEqual(last["target"], "TECL")
+
+    def test_signal_can_select_three_day_laggard(self):
+        prices = self.rising_prices()
+        last = build_signals(prices, risk_selection="laggard_3d").iloc[-1]
+        self.assertTrue(last["risk_on"])
+        self.assertEqual(last["risk_pick"], "TECL")
+        self.assertEqual(last["target"], "TECL")
+
+    def test_unknown_risk_selection_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unknown risk selection"):
+            build_signals(self.rising_prices(), risk_selection="unknown")
+
     def test_round_trip_costs_are_charged_on_both_sides(self):
         prices = self.rising_prices()
         engine = RotationBacktest(prices, Config(initial_cash=1_000.0, cost_bps=10.0))
@@ -94,6 +113,32 @@ class RotationHelpersTest(unittest.TestCase):
             float(daily.iloc[0]["stop_reference"]),
             float(prices["TQQQ"].at[prior, "close"]),
         )
+
+    def test_daily_qqq_risk_off_rotates_risk_holding_next_close(self):
+        prices = self.rising_prices()
+        days = prices["QQQ"].index
+        start, exit_day = days[-10:-8]
+        prior = days[-11]
+        engine = RotationBacktest(
+            prices,
+            Config(
+                start_date=start.date(),
+                end_date=exit_day.date(),
+                execution="qc_close",
+                daily_qqq_risk_off=True,
+            ),
+        )
+        engine.signals.loc[prior, "target"] = "TQQQ"
+        engine.signals.loc[start, "risk_on"] = False
+        engine.signals.loc[start, "defensive_pick"] = "GLD"
+
+        daily, trades = engine.run()
+
+        self.assertEqual(daily.iloc[-1]["holding"], "GLD")
+        self.assertEqual(trades.iloc[-2]["reason"], "DAILY_QQQ_RISK_OFF")
+        self.assertEqual(trades.iloc[-2]["action"], "SELL")
+        self.assertEqual(trades.iloc[-1]["reason"], "DAILY_QQQ_RISK_OFF")
+        self.assertEqual(trades.iloc[-1]["action"], "BUY")
 
 
 if __name__ == "__main__":

@@ -110,6 +110,12 @@ run the independent rotation backtest:
 .venv/bin/python local_rotation_backtest.py \
   --execution same_close --cost-bps 0 \
   --start-date 2016-06-01 --end-date 2026-06-12
+
+# FinLab short-term mean-reversion variant: buy the 3-day laggard, 8% stop
+.venv/bin/python local_rotation_backtest.py \
+  --execution same_close --risk-selection laggard_3d --stop-loss 0.08 \
+  --start-date 2016-06-01 --end-date 2026-06-12 \
+  --output-dir results/rotation_laggard_3d
 ```
 
 The regime is risk-on when adjusted QQQ is above its 200-session average and
@@ -117,9 +123,30 @@ its 126-session return is positive. Risk-on holds the stronger of TQQQ and
 TECL; risk-off holds the stronger of GLD, IEF, and SHY. Strength is the
 63-session percentage return minus the 21-session percentage return. The
 portfolio rebalances monthly and uses a 10% touched stop with gap-aware fills.
+Pass `--risk-selection laggard_3d --stop-loss 0.08` to reproduce the signal and
+stop configuration from FinLab's short-term mean-reversion paper. This selects
+the lower trailing three-session return between TQQQ and TECL at each rebalance.
 
 Results are written to `results/rotation/trades.csv` and
 `results/rotation/daily_equity.csv`.
+
+## TQQQ Seasonal-MACD Backtest
+
+The Les Masonson/Stock Trader's Almanac seasonal timing idea is available as a
+separate local backtest. It watches standard 12/26/9 MACD crossovers on QQQ,
+buys TQQQ at the next open after the first bullish crossover on or after
+October 1, and exits at the next open after the first bearish crossover on or
+after July 1. This is the Nasdaq-specific eight-month version discussed in the
+video; pass `--window broad-six` to test the April exit gate. Idle capital
+remains in cash.
+
+```bash
+.venv/bin/python local_tqqq_seasonal_macd_backtest.py \
+  --start-date 2010-02-11 --cost-bps 5
+```
+
+Results are written to `results/tqqq_seasonal_macd/trades.csv` and
+`results/tqqq_seasonal_macd/daily_equity.csv`.
 
 For QuantConnect, create a Python project and paste the contents of
 `quantconnect_finlab_rotation.py` into `main.py`. This is a LEAN port of the
