@@ -113,7 +113,7 @@ run the independent rotation backtest:
 
 # FinLab short-term mean-reversion variant: buy the 3-day laggard, 8% stop
 .venv/bin/python local_rotation_backtest.py \
-  --execution same_close --risk-selection laggard_3d --stop-loss 0.08 \
+  --execution same_close --risk-selection laggard --laggard-days 3 --stop-loss 0.08 \
   --start-date 2016-06-01 --end-date 2026-06-12 \
   --output-dir results/rotation_laggard_3d
 ```
@@ -123,7 +123,7 @@ its 126-session return is positive. Risk-on holds the stronger of TQQQ and
 TECL; risk-off holds the stronger of GLD, IEF, and SHY. Strength is the
 63-session percentage return minus the 21-session percentage return. The
 portfolio rebalances monthly and uses a 10% touched stop with gap-aware fills.
-Pass `--risk-selection laggard_3d --stop-loss 0.08` to reproduce the signal and
+Pass `--risk-selection laggard --laggard-days 3 --stop-loss 0.08` to reproduce the signal and
 stop configuration from FinLab's short-term mean-reversion paper. This selects
 the lower trailing three-session return between TQQQ and TECL at each rebalance.
 
@@ -153,6 +153,19 @@ For QuantConnect, create a Python project and paste the contents of
 published FinLab rules; it uses the prior completed bar and trades after the
 next month opens, because the original FinLab SDK's same-close execution
 engine is not available on QuantConnect.
+
+The QuantConnect algorithm accepts a `risk-selection` project parameter:
+
+- `strongest` (default): highest 63-day-minus-21-day momentum
+- `weakest`: lowest 63-day-minus-21-day momentum
+- `alternate`: TQQQ in odd-numbered months and TECL in even-numbered months
+- `random`: reproducible random choice between TQQQ and TECL; set `random-seed`
+- `laggard`: lowest return over the previous `laggard-days` completed sessions
+
+To test the mean-reversion paper, add `risk-selection` = `laggard` and
+`laggard-days` = `3` in the project's Parameters panel. The paper also uses an 8% stop, so set
+`STOP_LOSS = 0.08` when reproducing its complete configuration; leave it at
+`0.10` for a selection-only comparison against the original strategy.
 
 ---
 

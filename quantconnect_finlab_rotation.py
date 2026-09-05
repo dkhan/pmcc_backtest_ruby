@@ -8,12 +8,23 @@ It reproduces the paper's zero-fee, monthly close-execution convention as
 closely as LEAN permits while using only completed prior-session signals.
 """
 
+import hashlib
+
 from AlgorithmImports import *
 
 
 class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
     RISK_TICKERS = ("TQQQ", "TECL")
     DEFENSIVE_TICKERS = ("IEF", "GLD", "SHY")
+    RISK_SELECTION = "strongest"
+    VALID_RISK_SELECTIONS = (
+        "strongest",
+        "weakest",
+        "alternate",
+        "random",
+        "laggard",
+    )
+    LAGGARD_DAYS = 3
     STOP_LOSS = 0.10
     HISTORY_BARS = 220
 
@@ -22,6 +33,33 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
         self.SetEndDate(2026, 6, 12)
         self.SetCash(100_000)
         self.SetBenchmark("QQQ")
+
+        # Set `risk-selection` in the QuantConnect Parameters panel. The
+        # default preserves the original aggressive rotation strategy.
+        self.risk_selection = (
+            self.GetParameter("risk-selection") or self.RISK_SELECTION
+        ).strip().lower()
+        if self.risk_selection not in self.VALID_RISK_SELECTIONS:
+            raise ValueError(
+                "risk-selection must be one of: "
+                + ", ".join(self.VALID_RISK_SELECTIONS)
+            )
+        random_seed_text = self.GetParameter("random-seed") or "0"
+        try:
+            self.random_seed = int(random_seed_text)
+        except ValueError as exc:
+            raise ValueError("random-seed must be an integer") from exc
+        laggard_days_text = (
+            self.GetParameter("laggard-days") or str(self.LAGGARD_DAYS)
+        )
+        try:
+            self.laggard_days = int(laggard_days_text)
+        except ValueError as exc:
+            raise ValueError("laggard-days must be an integer") from exc
+        if not 1 <= self.laggard_days < self.HISTORY_BARS:
+            raise ValueError(
+                f"laggard-days must be between 1 and {self.HISTORY_BARS - 1}"
+            )
 
         tickers = ("QQQ",) + self.RISK_TICKERS + self.DEFENSIVE_TICKERS
         self.symbols = {}
@@ -86,9 +124,14 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
         qqq_return126 = qqq.iloc[-1] / qqq.iloc[-127] - 1.0
         risk_on = qqq_above_sma200 and qqq_return126 > 0.0
 
-        candidates = self.RISK_TICKERS if risk_on else self.DEFENSIVE_TICKERS
-        scores = {ticker: self.MomentumScore(closes[ticker]) for ticker in candidates}
-        target_ticker = max(scores, key=scores.get)
+        if risk_on:
+            target_ticker = self.SelectRiskAsset(closes)
+        else:
+            scores = {
+                ticker: self.MomentumScore(closes[ticker])
+                for ticker in self.DEFENSIVE_TICKERS
+            }
+            target_ticker = max(scores, key=scores.get)
         target = self.symbols[target_ticker]
 
         self.CancelStop()
@@ -120,6 +163,35 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
             False,
             f"Monthly rotation to {target_ticker}",
         )
+
+    def SelectRiskAsset(self, closes):
+        """Select TQQQ/TECL using the requested QuantConnect parameter."""
+        if self.risk_selection == "alternate":
+            signal_date = closes[self.RISK_TICKERS[0]].index[-1]
+            return self.RISK_TICKERS[(signal_date.month - 1) % len(self.RISK_TICKERS)]
+
+        if self.risk_selection == "random":
+            signal_date = closes[self.RISK_TICKERS[0]].index[-1]
+            key = f"{self.random_seed}:{signal_date.date().isoformat()}".encode()
+            choice = int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
+            return self.RISK_TICKERS[choice % len(self.RISK_TICKERS)]
+
+        if self.risk_selection == "laggard":
+            returns = {
+                ticker: closes[ticker].iloc[-1]
+                / closes[ticker].iloc[-(self.laggard_days + 1)]
+                - 1.0
+                for ticker in self.RISK_TICKERS
+            }
+            return min(returns, key=returns.get)
+
+        scores = {
+            ticker: self.MomentumScore(closes[ticker])
+            for ticker in self.RISK_TICKERS
+        }
+        if self.risk_selection == "weakest":
+            return min(scores, key=scores.get)
+        return max(scores, key=scores.get)
 
     @staticmethod
     def MomentumScore(close):
@@ -163,6 +235,11 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
             self.PlaceStop(symbol, quantity)
 
     def OnEndOfAlgorithm(self):
+        self.Log(f"Risk selection: {self.risk_selection}")
+        if self.risk_selection == "random":
+            self.Log(f"Random seed: {self.random_seed}")
+        if self.risk_selection == "laggard":
+            self.Log(f"Laggard days: {self.laggard_days}")
         self.Log(f"Invalid order count: {self.invalid_order_count}")
         if self.invalid_order_count:
             self.Error("Backtest is invalid for comparison: one or more orders failed")
@@ -175,7 +252,7 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
             symbol,
             -quantity,
             stop_price,
-            tag="10% monthly-reset stop",
+            tag=f"{self.STOP_LOSS:.1%} monthly-reset stop",
         )
 
     def CancelStop(self):

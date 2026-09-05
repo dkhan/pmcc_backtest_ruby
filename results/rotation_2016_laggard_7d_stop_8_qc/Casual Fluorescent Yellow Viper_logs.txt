@@ -1,0 +1,9 @@
+2015-07-17 00:00:00 Launching analysis for ae4e21cacfa86cd14671c29c7fd2d97d with LEAN Engine v2.5.0.0.18056
+2016-06-01 00:00:00 Warning: SetBenchmark(QQQ): no existing symbol found, benchmark security will be added with Equity type.
+2015-07-17 00:00:00 Algorithm starting warm up...
+2016-06-01 00:00:00 Algorithm finished warming up.
+2016-06-01 09:31:00 Warning: market orders on daily resolution data sent during market hours are automatically converted into MarketOnClose orders (or MarketOnOpen near the close) to avoid filling at the stale previous close. Note: in live trading this conversion is not applied, as the order fills at the current market price.
+2026-06-05 16:00:00 Risk selection: laggard
+2026-06-05 16:00:00 Laggard days: 7
+2026-06-05 16:00:00 Invalid order count: 0
+2026-06-05 16:00:00 Algorithm Id:(ae4e21cacfa86cd14671c29c7fd2d97d) completed in 5.91 seconds at 33k data points per second. Processing total of 194,290 data points.

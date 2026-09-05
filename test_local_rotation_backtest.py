@@ -69,14 +69,46 @@ class RotationHelpersTest(unittest.TestCase):
 
     def test_signal_can_select_three_day_laggard(self):
         prices = self.rising_prices()
-        last = build_signals(prices, risk_selection="laggard_3d").iloc[-1]
+        last = build_signals(
+            prices, risk_selection="laggard", laggard_days=3
+        ).iloc[-1]
         self.assertTrue(last["risk_on"])
         self.assertEqual(last["risk_pick"], "TECL")
         self.assertEqual(last["target"], "TECL")
 
+    def test_signal_can_select_one_and_two_day_laggards(self):
+        prices = self.rising_prices()
+        for days in (1, 2):
+            with self.subTest(days=days):
+                last = build_signals(
+                    prices, risk_selection="laggard", laggard_days=days
+                ).iloc[-1]
+                self.assertEqual(last["risk_pick"], "TECL")
+
     def test_unknown_risk_selection_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unknown risk selection"):
             build_signals(self.rising_prices(), risk_selection="unknown")
+
+    def test_invalid_laggard_days_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "laggard_days must be at least 1"):
+            build_signals(
+                self.rising_prices(), risk_selection="laggard", laggard_days=0
+            )
+
+    def test_random_selection_is_reproducible_and_seeded(self):
+        prices = self.rising_prices()
+        first = build_signals(prices, risk_selection="random", random_seed=7)
+        repeat = build_signals(prices, risk_selection="random", random_seed=7)
+        other = build_signals(prices, risk_selection="random", random_seed=8)
+        self.assertTrue(first["risk_pick"].equals(repeat["risk_pick"]))
+        self.assertFalse(first["risk_pick"].equals(other["risk_pick"]))
+
+    def test_alternate_selection_uses_tqqq_in_odd_and_tecl_in_even_months(self):
+        signals = build_signals(self.rising_prices(), risk_selection="alternate")
+        january = signals.loc[signals.index.month == 1, "risk_pick"]
+        february = signals.loc[signals.index.month == 2, "risk_pick"]
+        self.assertTrue(january.eq("TQQQ").all())
+        self.assertTrue(february.eq("TECL").all())
 
     def test_round_trip_costs_are_charged_on_both_sides(self):
         prices = self.rising_prices()

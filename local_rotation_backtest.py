@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import math
 from dataclasses import dataclass
 from datetime import date
@@ -51,6 +52,8 @@ class Config:
     rebalance_schedule: str = "month_start"
     daily_qqq_risk_off: bool = False
     risk_selection: str = "strongest"
+    laggard_days: int = 3
+    random_seed: int = 0
     stop_loss: float = 0.10
     cost_bps: float = 0.0
 
@@ -78,15 +81,26 @@ def load_prices(data_dir: Path) -> dict[str, pd.DataFrame]:
 
 
 def build_signals(
-    prices: dict[str, pd.DataFrame], risk_selection: str = "strongest"
+    prices: dict[str, pd.DataFrame],
+    risk_selection: str = "strongest",
+    laggard_days: int = 3,
+    random_seed: int = 0,
 ) -> pd.DataFrame:
     """Build signals using only information available at each session close."""
-    valid_risk_selections = {"strongest", "weakest", "laggard_3d"}
+    valid_risk_selections = {
+        "strongest",
+        "weakest",
+        "alternate",
+        "random",
+        "laggard",
+    }
     if risk_selection not in valid_risk_selections:
         raise ValueError(
             f"Unknown risk selection {risk_selection!r}; expected one of "
             f"{sorted(valid_risk_selections)}"
         )
+    if laggard_days < 1:
+        raise ValueError("laggard_days must be at least 1")
     close = pd.concat(
         {symbol: prices[symbol]["close"] for symbol in SYMBOLS}, axis=1
     ).sort_index()
@@ -107,7 +121,6 @@ def build_signals(
         close[list(RISK_ASSETS)].pct_change(63, fill_method=None)
         - close[list(RISK_ASSETS)].pct_change(21, fill_method=None)
     )
-    risk_returns_3d = close[list(RISK_ASSETS)].pct_change(3, fill_method=None)
     defensive_momentum = (
         close[list(DEFENSIVE_ASSETS)].pct_change(63, fill_method=None)
         - close[list(DEFENSIVE_ASSETS)].pct_change(21, fill_method=None)
@@ -124,14 +137,27 @@ def build_signals(
             return str(available.idxmin())
         return str(available.idxmax())
 
-    risk_scores = risk_returns_3d if risk_selection == "laggard_3d" else risk_returns
-    if risk_selection == "laggard_3d":
+    if risk_selection == "alternate":
+        result["risk_pick"] = [
+            RISK_ASSETS[(day.month - 1) % len(RISK_ASSETS)] for day in result.index
+        ]
+    elif risk_selection == "random":
+        def reproducible_random_pick(row: pd.Series) -> str:
+            key = f"{random_seed}:{row.name.date().isoformat()}".encode()
+            choice = int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
+            return RISK_ASSETS[choice % len(RISK_ASSETS)]
+
+        result["risk_pick"] = risk_returns.apply(reproducible_random_pick, axis=1)
+    elif risk_selection == "laggard":
+        risk_scores = close[list(RISK_ASSETS)].pct_change(
+            laggard_days, fill_method=None
+        )
         result["risk_pick"] = risk_scores.apply(
             lambda row: str(row.dropna().idxmin()) if not row.dropna().empty else None,
             axis=1,
         )
     else:
-        result["risk_pick"] = risk_scores.apply(available_risk_pick, axis=1)
+        result["risk_pick"] = risk_returns.apply(available_risk_pick, axis=1)
     result["defensive_pick"] = defensive_momentum.apply(available_winner, axis=1)
     result["target"] = result["defensive_pick"]
     result.loc[result["risk_on"], "target"] = result.loc[
@@ -197,7 +223,12 @@ class RotationBacktest:
     def __init__(self, prices: dict[str, pd.DataFrame], config: Config):
         self.prices = prices
         self.cfg = config
-        self.signals = build_signals(prices, config.risk_selection)
+        self.signals = build_signals(
+            prices,
+            config.risk_selection,
+            laggard_days=config.laggard_days,
+            random_seed=config.random_seed,
+        )
         self.cash = config.initial_cash
         self.symbol: Optional[str] = None
         self.shares = 0.0
@@ -466,12 +497,31 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--risk-selection",
-        choices=("strongest", "weakest", "laggard_3d"),
+        choices=(
+            "strongest",
+            "weakest",
+            "alternate",
+            "random",
+            "laggard",
+        ),
         default="strongest",
         help=(
-            "strongest/weakest use 63-day minus 21-day momentum; laggard_3d "
-            "implements FinLab's mean-reversion rule (default: strongest)"
+            "strongest/weakest use 63-day minus 21-day momentum; alternate "
+            "uses TQQQ in odd months and TECL in even months; laggard picks "
+            "the lowest --laggard-days return (default: strongest)"
         ),
+    )
+    parser.add_argument(
+        "--laggard-days",
+        type=int,
+        default=3,
+        help="completed sessions used by --risk-selection laggard (default: 3)",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=0,
+        help="reproducible seed used when --risk-selection random (default: 0)",
     )
     parser.add_argument("--cost-bps", type=float, default=0.0)
     return parser.parse_args()
@@ -483,6 +533,8 @@ def main() -> None:
         raise SystemExit("--stop-loss must be between 0 and 1")
     if args.initial_cash <= 0 or args.cost_bps < 0:
         raise SystemExit("--initial-cash must be positive and --cost-bps non-negative")
+    if args.laggard_days < 1:
+        raise SystemExit("--laggard-days must be at least 1")
     if args.daily_qqq_risk_off and args.execution != "qc_close":
         raise SystemExit("--daily-qqq-risk-off requires --execution qc_close")
     config = Config(
@@ -493,6 +545,8 @@ def main() -> None:
         rebalance_schedule=args.rebalance_schedule,
         daily_qqq_risk_off=args.daily_qqq_risk_off,
         risk_selection=args.risk_selection,
+        laggard_days=args.laggard_days,
+        random_seed=args.random_seed,
         stop_loss=args.stop_loss,
         cost_bps=args.cost_bps,
     )
@@ -512,6 +566,10 @@ def main() -> None:
         + ("enabled" if args.daily_qqq_risk_off else "disabled")
     )
     print(f"Risk selection   : {args.risk_selection}")
+    if args.risk_selection == "laggard":
+        print(f"Laggard days     : {args.laggard_days}")
+    if args.risk_selection == "random":
+        print(f"Random seed      : {args.random_seed}")
     print(f"Trading costs    : {args.cost_bps:.2f} bps per side")
     print(f"Ending equity    : ${strategy['ending']:,.2f}")
     print(f"CAGR             : {strategy['cagr']:.2%}")

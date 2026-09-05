@@ -1,0 +1,84 @@
+//@version=6
+indicator("FinLab Monthly ETF Rotation", overlay=false)
+
+momentum(float price) =>
+    return63 = price / price[63] - 1.0
+    return21 = price / price[21] - 1.0
+    return63 - return21
+
+etfMetrics() =>
+    [momentum(close), close / close[7] - 1.0]
+
+[qqq, qqqSma200, qqqReturn126] = request.security(
+     "NASDAQ:QQQ", "D", [close, ta.sma(close, 200), close / close[126] - 1.0])
+[tqqqScore, tqqqReturn7] = request.security("NASDAQ:TQQQ", "D", etfMetrics())
+[teclScore, teclReturn7] = request.security("AMEX:TECL", "D", etfMetrics())
+[gldScore, gldReturn7] = request.security("AMEX:GLD", "D", etfMetrics())
+[iefScore, iefReturn7] = request.security("NASDAQ:IEF", "D", etfMetrics())
+[shyScore, shyReturn7] = request.security("NASDAQ:SHY", "D", etfMetrics())
+
+riskOn = qqq > qqqSma200 and qqqReturn126 > 0
+
+riskTarget = tqqqReturn7 <= teclReturn7 ? "TQQQ" : "TECL"
+
+defensiveTarget =
+     gldScore >= iefScore and gldScore >= shyScore ? "GLD" :
+     iefScore >= shyScore ? "IEF" : "SHY"
+
+target = riskOn ? riskTarget : defensiveTarget
+
+var table result = table.new(position.top_right, 2, 9)
+
+if barstate.islast
+    table.cell(result, 0, 0, "Regime",
+         text_color=color.silver)
+    table.cell(result, 1, 0, riskOn ? "RISK-ON" : "DEFENSIVE",
+         bgcolor=riskOn ? color.green : color.orange)
+
+    table.cell(result, 0, 1, "Target",
+         text_color=color.silver)
+    table.cell(result, 1, 1, target, bgcolor=color.blue,
+         text_color=color.white)
+
+    table.cell(result, 0, 2, "QQQ > SMA200",
+         text_color=color.silver)
+    table.cell(result, 1, 2, str.tostring(qqq > qqqSma200),
+         text_color=color.silver)
+
+    table.cell(result, 0, 3, "QQQ 126d return",
+         text_color=color.silver)
+    table.cell(result, 1, 3, str.tostring(qqqReturn126, "#.00%"),
+         text_color=color.silver)
+
+    table.cell(result, 0, 4, "TQQQ score | 7d",
+         text_color=color.silver)
+    table.cell(result, 1, 4,
+         str.tostring(tqqqScore, "#.00%") + " | " + str.tostring(tqqqReturn7, "#.00%"),
+         text_color=color.silver)
+
+    table.cell(result, 0, 5, "TECL score | 7d",
+         text_color=color.silver)
+    table.cell(result, 1, 5,
+         str.tostring(teclScore, "#.00%") + " | " + str.tostring(teclReturn7, "#.00%"),
+         text_color=color.silver)
+
+    table.cell(result, 0, 6, "GLD score | 7d",
+         text_color=color.silver)
+    table.cell(result, 1, 6,
+         str.tostring(gldScore, "#.00%") + " | " + str.tostring(gldReturn7, "#.00%"),
+         text_color=color.silver)
+
+    table.cell(result, 0, 7, "IEF score | 7d",
+         text_color=color.silver)
+    table.cell(result, 1, 7,
+         str.tostring(iefScore, "#.00%") + " | " + str.tostring(iefReturn7, "#.00%"),
+         text_color=color.silver)
+
+    table.cell(result, 0, 8, "SHY score | 7d",
+         text_color=color.silver)
+    table.cell(result, 1, 8,
+         str.tostring(shyScore, "#.00%") + " | " + str.tostring(shyReturn7, "#.00%"),
+         text_color=color.silver)
+
+plot(qqqReturn126, "QQQ 126-day return", color=color.blue)
+hline(0, "Zero", color=color.silver)
