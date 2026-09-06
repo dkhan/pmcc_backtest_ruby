@@ -1,0 +1,87 @@
+//@version=6
+indicator("Smart QQQ (QuantConnect rules)", overlay=false)
+
+// QuantConnect's script rebuilds a 10-day Wilder RSI from a rolling window
+// containing 49 completed daily closes plus the current price.
+qcRsi(float price, int period) =>
+    int extension = math.min(period * 5, 250)
+    float averageGain = na
+    float averageLoss = na
+    if not na(price[extension - 1])
+        float gain = 0.0
+        float loss = 0.0
+        for offset = 0 to period - 1
+            int i = extension - 1 - offset
+            float change = price[i - 1] - price[i]
+            gain += math.max(change, 0.0)
+            loss += math.abs(math.min(change, 0.0))
+        averageGain := gain / period
+        averageLoss := loss / period
+        for offset = 0 to extension - period - 2
+            int i = extension - period - 1 - offset
+            float change = price[i - 1] - price[i]
+            averageGain := (averageGain * (period - 1) + math.max(change, 0.0)) / period
+            averageLoss := (averageLoss * (period - 1) + math.abs(math.min(change, 0.0))) / period
+    na(averageLoss) ? na : averageLoss == 0.0 ? 100.0 : 100.0 - 100.0 / (1.0 + averageGain / averageLoss)
+
+// Daily requests keep the signal independent of the chart timeframe.
+qqqRsi10 = request.security("NASDAQ:QQQ", "D", qcRsi(close, 10),
+     gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[spyPrice, spySma30, spySma200] = request.security(
+     "AMEX:SPY", "D", [close, ta.sma(close, 30), ta.sma(close, 200)],
+     gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+string target = na
+string reason = na
+if qqqRsi10 > 79
+    target := "UVXY"
+    reason := "QQQ RSI(10) > 79"
+else if qqqRsi10 < 31
+    target := "TQQQ"
+    reason := "QQQ RSI(10) < 31"
+else if spyPrice > spySma200
+    if spyPrice > spySma30
+        target := "QQQ"
+        reason := "SPY > SMA200 and SMA30"
+    else
+        target := "XLU"
+        reason := "SPY > SMA200, below SMA30"
+else
+    if spyPrice > spySma30
+        target := "QQQ"
+        reason := "SPY < SMA200, above SMA30"
+    else
+        target := "GLD"
+        reason := "SPY below SMA200 and SMA30"
+
+targetColor = target == "TQQQ" ? color.lime :
+     target == "QQQ" ? color.blue :
+     target == "UVXY" ? color.red :
+     target == "XLU" ? color.orange :
+     target == "GLD" ? color.gold : color.gray
+
+var table dashboard = table.new(position.top_right, 2, 7,
+     frame_color=color.silver, frame_width=1)
+if barstate.islast
+    table.cell(dashboard, 0, 0, "SMART QQQ", bgcolor=color.rgb(35, 55, 90), text_color=color.white)
+    table.cell(dashboard, 1, 0, "DAILY", bgcolor=color.rgb(35, 55, 90), text_color=color.white)
+    table.cell(dashboard, 0, 1, "Target", text_color=color.silver)
+    table.cell(dashboard, 1, 1, target, bgcolor=targetColor, text_color=color.white)
+    table.cell(dashboard, 0, 2, "Reason", text_color=color.silver)
+    table.cell(dashboard, 1, 2, reason, text_color=color.silver)
+    table.cell(dashboard, 0, 3, "QQQ RSI(10)", text_color=color.silver)
+    table.cell(dashboard, 1, 3, str.tostring(qqqRsi10, "#.00"), text_color=color.silver)
+    table.cell(dashboard, 0, 4, "SPY close", text_color=color.silver)
+    table.cell(dashboard, 1, 4, str.tostring(spyPrice, "#.00"), text_color=color.silver)
+    table.cell(dashboard, 0, 5, "SPY SMA30", text_color=color.silver)
+    table.cell(dashboard, 1, 5, str.tostring(spySma30, "#.00"), text_color=color.silver)
+    table.cell(dashboard, 0, 6, "SPY SMA200", text_color=color.silver)
+    table.cell(dashboard, 1, 6, str.tostring(spySma200, "#.00"), text_color=color.silver)
+
+plot(qqqRsi10, "QQQ RSI(10)", color=color.aqua, linewidth=2)
+hline(79, "UVXY threshold", color=color.red)
+hline(31, "TQQQ threshold", color=color.lime)
+
+targetChanged = not na(target) and target != target[1]
+alertcondition(targetChanged, "Smart QQQ target changed",
+     "Smart QQQ target changed. Open the indicator dashboard for the new holding.")
