@@ -148,6 +148,27 @@ remains in cash.
 Results are written to `results/tqqq_seasonal_macd/trades.csv` and
 `results/tqqq_seasonal_macd/daily_equity.csv`.
 
+## VectorVest NETS Local Approximation
+
+Download QLD alongside the existing ETF data and run the public-data NETS
+approximation locally:
+
+```bash
+.venv/bin/python download_rotation_etfs.py
+.venv/bin/python local_vectorvest_nets_backtest.py --strategy turbo
+.venv/bin/python local_vectorvest_nets_backtest.py --strategy nitro
+.venv/bin/python local_vectorvest_nets_backtest.py --strategy turbo --sweep
+.venv/bin/python local_vectorvest_nets_backtest.py --strategy nitro --sweep-target one-year --sweep
+```
+
+The local model follows the published QQQ/QLD state transitions and executes
+signals at the following session's open. Since VectorVest's Confirmed Calls and
+Relative Timing series are proprietary, it substitutes a QQQ EMA regime and
+RSI/50. Turbo uses QLD with +30%/-5% exits; Nitro uses TQQQ with +50%/-5%
+exits. Results go to a strategy-specific `results/vectorvest_nets_*` folder;
+the sweep reports the ten parameter combinations nearest the video's implied
+CAGR.
+
 For QuantConnect, create a Python project and paste the contents of
 `quantconnect_finlab_rotation.py` into `main.py`. This is a LEAN port of the
 published FinLab rules; it uses the prior completed bar and trades after the

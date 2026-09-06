@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yfinance as yf
 
-symbols = ["QQQ", "TQQQ", "TECL", "GLD", "IEF", "SHY"]
+symbols = ["QQQ", "QLD", "TQQQ", "TECL", "GLD", "IEF", "SHY", "SPY", "XLU", "UVXY"]
 output_dir = Path("data/etfs")
 output_dir.mkdir(parents=True, exist_ok=True)
 
