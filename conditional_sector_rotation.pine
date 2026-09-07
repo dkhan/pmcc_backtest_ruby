@@ -1,0 +1,115 @@
+//@version=6
+indicator("Conditional Sector Rotation", overlay=false, dynamic_requests=true, max_labels_count=500)
+
+// This script generates manual rotation signals. TradingView strategies can only
+// trade the chart symbol, so a true multi-asset portfolio backtest must remain in
+// QuantConnect (or another portfolio-level engine).
+
+groupSignal = "Signal settings"
+rsiLength = input.int(10, "Wilder RSI length", minval=2, group=groupSignal)
+spySmaLength = input.int(200, "SPY SMA length", minval=2, group=groupSignal)
+qqqSmaLength = input.int(20, "QQQ SMA length", minval=2, group=groupSignal)
+tqqqSmaLength = input.int(20, "TQQQ SMA length", minval=2, group=groupSignal)
+decisionHour = input.int(9, "Decision hour (New York)", minval=0, maxval=23, group=groupSignal)
+decisionMinute = input.int(31, "Decision minute", minval=0, maxval=59, group=groupSignal)
+
+groupSizing = "Manual sizing"
+accountEquity = input.float(25000, "Strategy account equity", minval=0, step=1000, group=groupSizing)
+targetWeight = input.float(95, "Target allocation (%)", minval=5, maxval=95, step=1, group=groupSizing) / 100.0
+
+// Latest confirmed daily values. With lookahead_off, Friday's values become
+// available only after Friday closes and remain in force at Tuesday's 09:31
+// decision when Monday is an exchange holiday.
+[spyClose, spySma, spyRsi] = request.security("AMEX:SPY", "D", [close, ta.sma(close, spySmaLength), ta.rsi(close, rsiLength)], lookahead=barmerge.lookahead_off)
+[qqqClose, qqqSma, qqqRsi] = request.security("NASDAQ:QQQ", "D", [close, ta.sma(close, qqqSmaLength), ta.rsi(close, rsiLength)], lookahead=barmerge.lookahead_off)
+[tqqqClose, tqqqSma, tqqqRsi] = request.security("NASDAQ:TQQQ", "D", [close, ta.sma(close, tqqqSmaLength), ta.rsi(close, rsiLength)], lookahead=barmerge.lookahead_off)
+uvxyRsi = request.security("AMEX:UVXY", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+sqqqRsi = request.security("NASDAQ:SQQQ", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+tecsRsi = request.security("AMEX:TECS", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+bsvRsi = request.security("AMEX:BSV", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+
+string target = na
+if spyClose > spySma
+    target := qqqRsi > 81 or spyRsi > 80 ? "UVXY" : "TQQQ"
+else if tqqqRsi < 30
+    target := "TECL"
+else if spyRsi < 30
+    target := "SPXL"
+else if uvxyRsi > 74
+    if uvxyRsi <= 84
+        target := "UVXY"
+    else if qqqClose > qqqSma
+        target := sqqqRsi < 31 ? "TECS" : "TECL"
+    else
+        target := tecsRsi >= bsvRsi ? "TECS" : "BSV"
+else if tqqqClose > tqqqSma
+    target := sqqqRsi < 34 ? "TECS" : "TECL"
+else
+    target := tecsRsi >= bsvRsi ? "TECS" : "BSV"
+
+// Current prices are for a manual whole-share estimate only. Recheck the live
+// ask and buying power at the broker after the old position has completely sold.
+tqqqPrice = request.security("NASDAQ:TQQQ", timeframe.period, close)
+uvxyPrice = request.security("AMEX:UVXY", timeframe.period, close)
+teclPrice = request.security("AMEX:TECL", timeframe.period, close)
+spxlPrice = request.security("AMEX:SPXL", timeframe.period, close)
+tecsPrice = request.security("AMEX:TECS", timeframe.period, close)
+bsvPrice = request.security("AMEX:BSV", timeframe.period, close)
+
+float targetPrice = switch target
+    "TQQQ" => tqqqPrice
+    "UVXY" => uvxyPrice
+    "TECL" => teclPrice
+    "SPXL" => spxlPrice
+    "TECS" => tecsPrice
+    => bsvPrice
+
+int estimatedShares = not na(targetPrice) and targetPrice > 0 ? int(math.floor(accountEquity * targetWeight / targetPrice)) : 0
+bool inputsReady = not na(spySma) and not na(qqqSma) and not na(tqqqSma) and not na(bsvRsi)
+bool decisionBar = hour(time, "America/New_York") == decisionHour and minute(time, "America/New_York") == decisionMinute
+
+var string heldTarget = ""
+bool rotation = barstate.isconfirmed and decisionBar and inputsReady and target != heldTarget
+string oldTarget = heldTarget == "" ? "CASH" : heldTarget
+
+if rotation
+    alert("CSR ROTATION: SELL " + oldTarget + "; after the sell fills, BUY " + target + "; estimated shares=" + str.tostring(estimatedShares) + " at " + str.tostring(targetWeight * 100, "#.0") + "% allocation. Recalculate from the live ask and updated equity.", alert.freq_once_per_bar_close)
+    heldTarget := target
+
+int targetCode = target == "TQQQ" ? 1 : target == "UVXY" ? 2 : target == "TECL" ? 3 : target == "SPXL" ? 4 : target == "TECS" ? 5 : 6
+plot(targetCode, "Target code", color=color.new(color.blue, 0), linewidth=2, style=plot.style_stepline, display=display.pane)
+plotshape(rotation, title="Rotation", style=shape.diamond, location=location.top, color=color.orange, size=size.small, display=display.pane)
+alertcondition(rotation, "Conditional Sector Rotation changed", "The Conditional Sector Rotation target changed. Open the chart for the target and sizing details.")
+
+bool plottedTargetChange = inputsReady and (na(target[1]) or target != target[1])
+if plottedTargetChange
+    label.new(bar_index, targetCode, target, style=label.style_label_down, color=color.navy, textcolor=color.white, size=size.small)
+
+var table dashboard = table.new(position.top_right, 2, 13, border_width=1)
+if barstate.islast
+    table.cell(dashboard, 0, 0, "Current target", bgcolor=color.navy, text_color=color.white)
+    table.cell(dashboard, 1, 0, target, bgcolor=color.navy, text_color=color.white)
+    table.cell(dashboard, 0, 1, "Est. shares", text_color=color.silver)
+    table.cell(dashboard, 1, 1, str.tostring(estimatedShares), text_color=color.silver)
+    table.cell(dashboard, 0, 2, "Target price", text_color=color.silver)
+    table.cell(dashboard, 1, 2, str.tostring(targetPrice, format.mintick), text_color=color.silver)
+    table.cell(dashboard, 0, 3, "SPY / SMA200", text_color=color.silver)
+    table.cell(dashboard, 1, 3, str.tostring(spyClose, "#.##") + " / " + str.tostring(spySma, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 4, "QQQ / SMA20", text_color=color.silver)
+    table.cell(dashboard, 1, 4, str.tostring(qqqClose, "#.##") + " / " + str.tostring(qqqSma, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 5, "TQQQ / SMA20", text_color=color.silver)
+    table.cell(dashboard, 1, 5, str.tostring(tqqqClose, "#.##") + " / " + str.tostring(tqqqSma, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 6, "SPY RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 6, str.tostring(spyRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 7, "QQQ RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 7, str.tostring(qqqRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 8, "TQQQ RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 8, str.tostring(tqqqRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 9, "SQQQ RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 9, str.tostring(sqqqRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 10, "UVXY RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 10, str.tostring(uvxyRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 11, "TECS / BSV RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 11, str.tostring(tecsRsi, "#.##") + " / " + str.tostring(bsvRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 12, "Code map", text_color=color.silver)
+    table.cell(dashboard, 1, 12, "1 TQQQ  2 UVXY  3 TECL\n4 SPXL  5 TECS  6 BSV", text_color=color.silver)
