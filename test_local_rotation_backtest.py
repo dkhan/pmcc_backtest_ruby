@@ -39,6 +39,28 @@ class RotationHelpersTest(unittest.TestCase):
             {pd.Timestamp("2024-03-28"), pd.Timestamp("2024-04-30")},
         )
 
+    def test_defaults_match_quantconnect_finlab_strategy(self):
+        config = Config()
+        self.assertEqual(config.execution, "qc_close")
+        self.assertEqual(config.ema_rule, "off")
+        self.assertEqual(config.risk_selection, "laggard")
+        self.assertEqual(config.laggard_days, 7)
+        self.assertEqual(config.stop_loss, 0.105)
+
+    def test_ema_rule_can_confirm_or_replace_finlab_regime(self):
+        prices = self.rising_prices()
+        off = build_signals(prices, ema_rule="off").iloc[-1]
+        confirm = build_signals(prices, ema_rule="confirm").iloc[-1]
+        replace = build_signals(prices, ema_rule="replace").iloc[-1]
+        self.assertTrue(off["finlab_risk_on"])
+        self.assertTrue(off["ema_risk_on"])
+        self.assertTrue(confirm["risk_on"])
+        self.assertTrue(replace["risk_on"])
+
+    def test_unknown_ema_rule_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "ema_rule must be one of"):
+            build_signals(self.rising_prices(), ema_rule="unknown")
+
     def test_stop_fill_models_gap_and_intraday_touch(self):
         self.assertEqual(stop_fill(95.0, 89.0, 90.0), 90.0)
         self.assertEqual(stop_fill(87.0, 85.0, 90.0), 87.0)
@@ -121,8 +143,11 @@ class RotationHelpersTest(unittest.TestCase):
     def test_qc_close_trades_first_session_close_and_skips_old_stop(self):
         prices = self.rising_prices()
         days = prices["QQQ"].index
-        start = days[-20]
-        prior = days[-21]
+        month_starts = [
+            days[i] for i in range(1, len(days)) if days[i].month != days[i - 1].month
+        ]
+        start = month_starts[-1]
+        prior = days[days.get_loc(start) - 1]
         # Make the selected asset cross its old stop intraday on the rebalance
         # session. QC has already cancelled that stop, so it must remain held.
         prices["TQQQ"].loc[start, "low"] = 1.0
@@ -149,8 +174,13 @@ class RotationHelpersTest(unittest.TestCase):
     def test_daily_qqq_risk_off_rotates_risk_holding_next_close(self):
         prices = self.rising_prices()
         days = prices["QQQ"].index
-        start, exit_day = days[-10:-8]
-        prior = days[-11]
+        month_starts = [
+            days[i] for i in range(1, len(days)) if days[i].month != days[i - 1].month
+        ]
+        start = month_starts[-1]
+        start_index = days.get_loc(start)
+        prior = days[start_index - 1]
+        exit_day = days[start_index + 1]
         engine = RotationBacktest(
             prices,
             Config(

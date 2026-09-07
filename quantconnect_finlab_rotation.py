@@ -15,8 +15,8 @@ from AlgorithmImports import *
 
 class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
     RISK_TICKERS = ("TQQQ", "TECL")
-    DEFENSIVE_TICKERS = ("IEF", "GLD", "SHY")
-    RISK_SELECTION = "strongest"
+    DEFENSIVE_TICKERS = ("GLD",)
+    RISK_SELECTION = "laggard"
     VALID_RISK_SELECTIONS = (
         "strongest",
         "weakest",
@@ -24,13 +24,13 @@ class FinLabMonthlyLeveragedEtfRotation(QCAlgorithm):
         "random",
         "laggard",
     )
-    LAGGARD_DAYS = 3
-    STOP_LOSS = 0.10
+    LAGGARD_DAYS = 7
+    STOP_LOSS = 0.105
     HISTORY_BARS = 220
 
     def Initialize(self):
-        self.SetStartDate(2016, 6, 1)
-        self.SetEndDate(2026, 6, 12)
+        self.SetStartDate(2011, 9, 5)
+        self.SetEndDate(2026, 9, 5)
         self.SetCash(100_000)
         self.SetBenchmark("QQQ")
 

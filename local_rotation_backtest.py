@@ -38,23 +38,23 @@ from typing import Optional
 import pandas as pd
 
 
-SYMBOLS = ("QQQ", "TQQQ", "TECL", "GLD", "IEF", "SHY")
+SYMBOLS = ("QQQ", "TQQQ", "TECL", "GLD")
 RISK_ASSETS = ("TQQQ", "TECL")
-DEFENSIVE_ASSETS = ("GLD", "IEF", "SHY")
+DEFENSIVE_ASSETS = ("GLD",)
 
 
 @dataclass(frozen=True)
 class Config:
     initial_cash: float = 100_000.0
     start_date: date = date(2016, 6, 1)
-    end_date: Optional[date] = None
-    execution: str = "next_open"
+    end_date: Optional[date] = date(2026, 6, 1)
+    execution: str = "qc_close"
     rebalance_schedule: str = "month_start"
     daily_qqq_risk_off: bool = False
-    risk_selection: str = "strongest"
-    laggard_days: int = 3
+    risk_selection: str = "laggard"
+    laggard_days: int = 7
     random_seed: int = 0
-    stop_loss: float = 0.10
+    stop_loss: float = 0.105
     cost_bps: float = 0.0
 
 
@@ -327,10 +327,16 @@ class RotationBacktest:
         if days.empty:
             raise RuntimeError("No common ETF sessions in the requested period")
         ends = month_end_dates(days)
-        qc_dates = qc_rebalance_dates(days, self.cfg.rebalance_schedule, days[0])
+        # Build the schedule from the complete exchange calendar. Treating the
+        # first requested backtest date as a month start would create a trade
+        # that QuantConnect's DateRules.MonthStart never schedules mid-month.
+        schedule_days = common[common <= end]
+        qc_dates = qc_rebalance_dates(
+            schedule_days, self.cfg.rebalance_schedule, start
+        )
         pending_target: Optional[str] = None
         prior_days = common[common < days[0]]
-        if self.cfg.execution in ("next_open", "qc_close") and len(prior_days):
+        if self.cfg.execution == "next_open" and len(prior_days):
             initial_target = self.signals.at[prior_days[-1], "target"]
             pending_target = initial_target if isinstance(initial_target, str) else None
 
@@ -462,19 +468,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=root / "data/etfs")
     parser.add_argument("--output-dir", type=Path, default=root / "results/rotation")
-    parser.add_argument("--initial-cash", type=float, default=100_000.0)
-    parser.add_argument("--start-date", type=date.fromisoformat, default=date(2016, 6, 1))
-    parser.add_argument("--end-date", type=date.fromisoformat)
+    parser.add_argument("--initial-cash", type=float, default=Config.initial_cash)
+    parser.add_argument("--start-date", type=date.fromisoformat, default=Config.start_date)
+    parser.add_argument("--end-date", type=date.fromisoformat, default=Config.end_date)
     parser.add_argument(
         "--execution",
         choices=("same_close", "next_open", "qc_close"),
-        default="next_open",
+        default=Config.execution,
         help=(
             "same_close uses month-end closes; next_open trades the following "
             "open; qc_close uses prior-session signals and first-session closes"
         ),
     )
-    parser.add_argument("--stop-loss", type=float, default=0.10)
+    parser.add_argument("--stop-loss", type=float, default=Config.stop_loss)
     parser.add_argument(
         "--rebalance-schedule",
         choices=(
@@ -484,12 +490,13 @@ def parse_args() -> argparse.Namespace:
             "every_3_months",
             "weekly_monday",
         ),
-        default="month_start",
+        default=Config.rebalance_schedule,
         help="QC-close management schedule (default: month_start)",
     )
     parser.add_argument(
         "--daily-qqq-risk-off",
         action="store_true",
+        default=Config.daily_qqq_risk_off,
         help=(
             "check QQQ's regime after every close and rotate a risk holding "
             "to the prior session's defensive pick at the next close"
@@ -504,26 +511,29 @@ def parse_args() -> argparse.Namespace:
             "random",
             "laggard",
         ),
-        default="strongest",
+        default=Config.risk_selection,
         help=(
             "strongest/weakest use 63-day minus 21-day momentum; alternate "
             "uses TQQQ in odd months and TECL in even months; laggard picks "
-            "the lowest --laggard-days return (default: strongest)"
+            "the lowest --laggard-days return (default: laggard)"
         ),
     )
     parser.add_argument(
         "--laggard-days",
         type=int,
-        default=3,
-        help="completed sessions used by --risk-selection laggard (default: 3)",
+        default=Config.laggard_days,
+        help=(
+            "completed sessions used by --risk-selection laggard "
+            f"(default: {Config.laggard_days})"
+        ),
     )
     parser.add_argument(
         "--random-seed",
         type=int,
-        default=0,
+        default=Config.random_seed,
         help="reproducible seed used when --risk-selection random (default: 0)",
     )
-    parser.add_argument("--cost-bps", type=float, default=0.0)
+    parser.add_argument("--cost-bps", type=float, default=Config.cost_bps)
     return parser.parse_args()
 
 
