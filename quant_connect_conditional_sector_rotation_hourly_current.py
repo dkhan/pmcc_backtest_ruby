@@ -1,11 +1,14 @@
 from AlgorithmImports import *
 
-# CAGR: 100.864
-# Drawdown: 51.3%
-# Sharpe ratio: 1.644
-
 class ConditionalSectorRotation(QCAlgorithm):
-    """Daily signal, next-session execution version of the strategy."""
+    """Hourly intraday strategy using current-session RSI/SMA metrics.
+
+    The target is checked at 09:45 and then once per hour through 15:45 ET.
+    A trade is submitted immediately when the decision tree selects a target
+    different from the strategy's current holding.
+    """
+
+    CHECK_TIMES = ((9, 45), (10, 45), (11, 45), (12, 45), (13, 45), (14, 45), (15, 45))
 
     TICKERS = (
         "SPY", "QQQ", "TQQQ", "UVXY", "TECL", "SPXL", "SQQQ", "TECS", "BSV"
@@ -51,19 +54,26 @@ class ConditionalSectorRotation(QCAlgorithm):
         ) + 10
         self.SetWarmUp(warmup_bars, Resolution.Daily)
 
-        # Minute subscriptions ensure this event fires and provide executable
-        # raw prices. Signal calculations request adjusted daily history.
-        self.Schedule.On(
-            self.DateRules.EveryDay(self.symbols["SPY"]),
-            self.TimeRules.AfterMarketOpen(self.symbols["SPY"], 1),
-            self.Rebalance,
-        )
+        # Start at 09:45 to avoid the least stable opening minutes, then check
+        # once per hour. DateRules limits callbacks to SPY trading days; the
+        # callback also rejects closed and early-close sessions.
+        for hour, minute in self.CHECK_TIMES:
+            self.Schedule.On(
+                self.DateRules.EveryDay(self.symbols["SPY"]),
+                self.TimeRules.At(hour, minute),
+                self.Rebalance,
+            )
 
     def OnData(self, data):
-        # Indicators update automatically; execution happens once at 09:31.
+        # Signal construction and execution happen in the scheduled callback.
         pass
 
     def Rebalance(self):
+        if not self.Securities[self.symbols["SPY"]].Exchange.ExchangeOpen:
+            self.Log(
+                f"SKIP {self.Time:%Y-%m-%d %H:%M}: SPY market is closed"
+            )
+            return
         if self.IsWarmingUp or not self._prices_ready():
             return
 
@@ -234,37 +244,88 @@ class ConditionalSectorRotation(QCAlgorithm):
             self.qqq_sma_period,
             self.tqqq_sma_period,
             self.rsi_period + 1,
-        ) + 5
-        history = self.history(
-            list(self.symbols.values()),
+        ) + 6
+        symbols = list(self.symbols.values())
+        adjusted_history = self.history(
+            symbols,
             bars,
             Resolution.DAILY,
             data_normalization_mode=DataNormalizationMode.ADJUSTED,
         )
-        if history.empty:
-            self.Log(f"SKIP {self.Time:%Y-%m-%d}: adjusted daily history is empty")
+        adjusted_minute_history = self.history(
+            symbols,
+            5,
+            Resolution.MINUTE,
+            data_normalization_mode=DataNormalizationMode.ADJUSTED,
+        )
+        if adjusted_history.empty or adjusted_minute_history.empty:
+            self.Log(
+                f"SKIP {self.Time:%Y-%m-%d}: adjusted daily/minute history is empty"
+            )
             return None
 
         closes = {}
         for ticker, symbol in self.symbols.items():
             try:
-                series = history.loc[symbol]["close"].dropna()
+                adjusted = adjusted_history.loc[symbol]["close"].dropna().copy()
+                current_minutes = (
+                    adjusted_minute_history.loc[symbol]["close"].dropna()
+                )
             except (KeyError, TypeError):
-                self.Log(f"SKIP {self.Time:%Y-%m-%d}: no adjusted history for {ticker}")
+                self.Log(f"SKIP {self.Time:%Y-%m-%d}: no history for {ticker}")
                 return None
+
+            # History implementations can differ on whether an incomplete daily
+            # bar is exposed intraday.  Explicitly remove today so it is included
+            # exactly once using the known 15:45 minute price below.
+            adjusted = adjusted[adjusted.index.date < self.Time.date()]
+            if adjusted.empty or current_minutes.empty:
+                self.Log(
+                    f"SKIP {self.Time:%Y-%m-%d}: adjusted prices unavailable for {ticker}"
+                )
+                return None
+
+            # History is bounded by LEAN's current time frontier. At each hourly
+            # callback, use only the latest completed minute available then.
+            latest_minute_time = current_minutes.index[-1]
+            minute_age = self.Time - latest_minute_time.to_pydatetime()
+            if minute_age.total_seconds() < 0:
+                self.Error(
+                    f"LOOK-AHEAD GUARD {ticker}: latest history timestamp "
+                    f"{latest_minute_time} exceeds algorithm time {self.Time}"
+                )
+                return None
+            if minute_age > timedelta(minutes=2):
+                self.Log(
+                    f"SKIP {self.Time:%Y-%m-%d %H:%M}: stale minute price for "
+                    f"{ticker}; latest={latest_minute_time}"
+                )
+                return None
+            adjusted_today = float(current_minutes.iloc[-1])
+            if adjusted_today <= 0:
+                self.Log(
+                    f"SKIP {self.Time:%Y-%m-%d}: invalid adjusted price for "
+                    f"{ticker}: {adjusted_today}"
+                )
+                return None
+
+            # Append today's provisional observation at this check time on the
+            # same corporate-action-adjusted scale as the daily history.
+            adjusted.loc[self.Time] = adjusted_today
+
             required = max(
                 self.rsi_period + 1,
                 self.spy_sma_period if ticker == "SPY" else 0,
                 self.qqq_sma_period if ticker == "QQQ" else 0,
                 self.tqqq_sma_period if ticker == "TQQQ" else 0,
             )
-            if len(series) < required:
+            if len(adjusted) < required:
                 self.Log(
                     f"SKIP {self.Time:%Y-%m-%d}: {ticker} has "
-                    f"{len(series)}/{required} daily bars"
+                    f"{len(adjusted)}/{required} daily observations"
                 )
                 return None
-            closes[ticker] = series
+            closes[ticker] = adjusted
 
         signal = {
             f"{ticker}_RSI": self._wilder_rsi(series, self.rsi_period)
@@ -275,8 +336,12 @@ class ConditionalSectorRotation(QCAlgorithm):
                 "SPY_close": float(closes["SPY"].iloc[-1]),
                 "QQQ_close": float(closes["QQQ"].iloc[-1]),
                 "TQQQ_close": float(closes["TQQQ"].iloc[-1]),
-                "SPY_SMA": float(closes["SPY"].iloc[-self.spy_sma_period :].mean()),
-                "QQQ_SMA": float(closes["QQQ"].iloc[-self.qqq_sma_period :].mean()),
+                "SPY_SMA": float(
+                    closes["SPY"].iloc[-self.spy_sma_period :].mean()
+                ),
+                "QQQ_SMA": float(
+                    closes["QQQ"].iloc[-self.qqq_sma_period :].mean()
+                ),
                 "TQQQ_SMA": float(
                     closes["TQQQ"].iloc[-self.tqqq_sma_period :].mean()
                 ),

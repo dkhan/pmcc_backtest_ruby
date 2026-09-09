@@ -1,11 +1,13 @@
 from AlgorithmImports import *
 
-# CAGR: 100.864
-# Drawdown: 51.3%
-# Sharpe ratio: 1.644
+# 15:45 => CAGR: 153.426 Drawdown: 52.4% Sharpe ratio: 2.256
+# 15:30 => CAGR: 158.563 Drawdown: 51.3% Sharpe ratio: 2.335
+# 15:15 => CAGR: 145.759 Drawdown: 56.1% Sharpe ratio: 2.191
+# 15:00 => CAGR: 139.856 Drawdown: 49.8% Sharpe ratio: 2.154
+# 12:30 => CAGR: 121.979 Drawdown: 50.8% Sharpe ratio: 1.157
 
 class ConditionalSectorRotation(QCAlgorithm):
-    """Daily signal, next-session execution version of the strategy."""
+    """3:45 PM strategy using the current session in its RSI/SMA metrics."""
 
     TICKERS = (
         "SPY", "QQQ", "TQQQ", "UVXY", "TECL", "SPXL", "SQQQ", "TECS", "BSV"
@@ -51,19 +53,22 @@ class ConditionalSectorRotation(QCAlgorithm):
         ) + 10
         self.SetWarmUp(warmup_bars, Resolution.Daily)
 
-        # Minute subscriptions ensure this event fires and provide executable
-        # raw prices. Signal calculations request adjusted daily history.
+        # Evaluate at exactly 15:45 ET. DateRules limits callbacks to SPY
+        # trading days; Rebalance also rejects a closed/early-close session.
         self.Schedule.On(
             self.DateRules.EveryDay(self.symbols["SPY"]),
-            self.TimeRules.AfterMarketOpen(self.symbols["SPY"], 1),
+            self.TimeRules.At(15, 45),
             self.Rebalance,
         )
 
     def OnData(self, data):
-        # Indicators update automatically; execution happens once at 09:31.
+        # Signal construction and execution happen in the scheduled callback.
         pass
 
     def Rebalance(self):
+        if not self.Securities[self.symbols["SPY"]].Exchange.ExchangeOpen:
+            self.Log(f"SKIP {self.Time:%Y-%m-%d}: SPY market is closed at 15:45")
+            return
         if self.IsWarmingUp or not self._prices_ready():
             return
 
@@ -234,37 +239,74 @@ class ConditionalSectorRotation(QCAlgorithm):
             self.qqq_sma_period,
             self.tqqq_sma_period,
             self.rsi_period + 1,
-        ) + 5
-        history = self.history(
-            list(self.symbols.values()),
+        ) + 6
+        symbols = list(self.symbols.values())
+        adjusted_history = self.history(
+            symbols,
             bars,
             Resolution.DAILY,
             data_normalization_mode=DataNormalizationMode.ADJUSTED,
         )
-        if history.empty:
-            self.Log(f"SKIP {self.Time:%Y-%m-%d}: adjusted daily history is empty")
+        adjusted_minute_history = self.history(
+            symbols,
+            5,
+            Resolution.MINUTE,
+            data_normalization_mode=DataNormalizationMode.ADJUSTED,
+        )
+        if adjusted_history.empty or adjusted_minute_history.empty:
+            self.Log(
+                f"SKIP {self.Time:%Y-%m-%d}: adjusted daily/minute history is empty"
+            )
             return None
 
         closes = {}
         for ticker, symbol in self.symbols.items():
             try:
-                series = history.loc[symbol]["close"].dropna()
+                adjusted = adjusted_history.loc[symbol]["close"].dropna().copy()
+                current_minutes = (
+                    adjusted_minute_history.loc[symbol]["close"].dropna()
+                )
             except (KeyError, TypeError):
-                self.Log(f"SKIP {self.Time:%Y-%m-%d}: no adjusted history for {ticker}")
+                self.Log(f"SKIP {self.Time:%Y-%m-%d}: no history for {ticker}")
                 return None
+
+            # History implementations can differ on whether an incomplete daily
+            # bar is exposed intraday.  Explicitly remove today so it is included
+            # exactly once using the known 15:45 minute price below.
+            adjusted = adjusted[adjusted.index.date < self.Time.date()]
+            if adjusted.empty or current_minutes.empty:
+                self.Log(
+                    f"SKIP {self.Time:%Y-%m-%d}: adjusted prices unavailable for {ticker}"
+                )
+                return None
+
+            # History only returns completed data. At the 15:45 callback this is
+            # the latest completed minute, so no later price enters the signal.
+            adjusted_today = float(current_minutes.iloc[-1])
+            if adjusted_today <= 0:
+                self.Log(
+                    f"SKIP {self.Time:%Y-%m-%d}: invalid adjusted price for "
+                    f"{ticker}: {adjusted_today}"
+                )
+                return None
+
+            # Append today's provisional 15:45 observation on exactly the same
+            # corporate-action-adjusted scale as the daily history.
+            adjusted.loc[self.Time] = adjusted_today
+
             required = max(
                 self.rsi_period + 1,
                 self.spy_sma_period if ticker == "SPY" else 0,
                 self.qqq_sma_period if ticker == "QQQ" else 0,
                 self.tqqq_sma_period if ticker == "TQQQ" else 0,
             )
-            if len(series) < required:
+            if len(adjusted) < required:
                 self.Log(
                     f"SKIP {self.Time:%Y-%m-%d}: {ticker} has "
-                    f"{len(series)}/{required} daily bars"
+                    f"{len(adjusted)}/{required} daily observations"
                 )
                 return None
-            closes[ticker] = series
+            closes[ticker] = adjusted
 
         signal = {
             f"{ticker}_RSI": self._wilder_rsi(series, self.rsi_period)
@@ -275,8 +317,12 @@ class ConditionalSectorRotation(QCAlgorithm):
                 "SPY_close": float(closes["SPY"].iloc[-1]),
                 "QQQ_close": float(closes["QQQ"].iloc[-1]),
                 "TQQQ_close": float(closes["TQQQ"].iloc[-1]),
-                "SPY_SMA": float(closes["SPY"].iloc[-self.spy_sma_period :].mean()),
-                "QQQ_SMA": float(closes["QQQ"].iloc[-self.qqq_sma_period :].mean()),
+                "SPY_SMA": float(
+                    closes["SPY"].iloc[-self.spy_sma_period :].mean()
+                ),
+                "QQQ_SMA": float(
+                    closes["QQQ"].iloc[-self.qqq_sma_period :].mean()
+                ),
                 "TQQQ_SMA": float(
                     closes["TQQQ"].iloc[-self.tqqq_sma_period :].mean()
                 ),

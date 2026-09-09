@@ -1,0 +1,180 @@
+//@version=6
+indicator("Conditional Sector Rotation 15:45 Current", overlay=false, dynamic_requests=true, max_labels_count=500)
+
+// Manual 15:45 ET decision indicator. Daily metrics below include the current,
+// still-forming session. They can change until the market closes. Use this on an
+// intraday chart and read the dashboard at 15:45 New York time.
+
+groupSignal = "Signal settings"
+rsiLength = input.int(10, "Wilder RSI length", minval=2, group=groupSignal)
+spySmaLength = input.int(200, "SPY SMA length", minval=2, group=groupSignal)
+qqqSmaLength = input.int(20, "QQQ SMA length", minval=2, group=groupSignal)
+tqqqSmaLength = input.int(20, "TQQQ SMA length", minval=2, group=groupSignal)
+
+groupSizing = "Manual sizing"
+accountEquity = input.float(25000, "Strategy account equity", minval=0, step=1000, group=groupSizing)
+targetWeight = input.float(95, "Target allocation (%)", minval=5, maxval=95, step=1, group=groupSizing) / 100.0
+
+snapshot1545() =>
+    ta.valuewhen(hour(time, "America/New_York") == 15 and minute(time, "America/New_York") == 40, close, 0)
+
+provisionalRsi(float snapshot, float previousClose, float previousAverageGain, float previousAverageLoss, int length) =>
+    float change = snapshot - previousClose
+    float gain = math.max(change, 0.0)
+    float loss = math.max(-change, 0.0)
+    float averageGain = (previousAverageGain * (length - 1) + gain) / length
+    float averageLoss = (previousAverageLoss * (length - 1) + loss) / length
+    averageLoss == 0 ? (averageGain > 0 ? 100.0 : 50.0) : 100.0 - 100.0 / (1.0 + averageGain / averageLoss)
+
+// On a live intraday bar, these higher-timeframe requests contain today's
+// provisional daily close, SMA and RSI. lookahead_off prevents future daily
+// values from being exposed on historical bars.
+[spyClose, spySma, spyRsi] = request.security("AMEX:SPY", "D", [close, ta.sma(close, spySmaLength), ta.rsi(close, rsiLength)], lookahead=barmerge.lookahead_off)
+[qqqClose, qqqSma, qqqRsi] = request.security("NASDAQ:QQQ", "D", [close, ta.sma(close, qqqSmaLength), ta.rsi(close, rsiLength)], lookahead=barmerge.lookahead_off)
+[tqqqClose, tqqqSma, tqqqRsi] = request.security("NASDAQ:TQQQ", "D", [close, ta.sma(close, tqqqSmaLength), ta.rsi(close, rsiLength)], lookahead=barmerge.lookahead_off)
+uvxyRsi = request.security("AMEX:UVXY", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+sqqqRsi = request.security("NASDAQ:SQQQ", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+tecsRsi = request.security("AMEX:TECS", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+bsvRsi = request.security("AMEX:BSV", "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_off)
+
+string target = na
+string branch = na
+if spyClose > spySma
+    if qqqRsi > 81 or spyRsi > 80
+        target := "UVXY"
+        branch := "Bull overbought"
+    else
+        target := "TQQQ"
+        branch := "Bull trend"
+else if tqqqRsi < 30
+    target := "TECL"
+    branch := "TQQQ oversold"
+else if spyRsi < 30
+    target := "SPXL"
+    branch := "SPY oversold"
+else if uvxyRsi > 74
+    if uvxyRsi <= 84
+        target := "UVXY"
+        branch := "UVXY momentum"
+    else if qqqClose > qqqSma
+        target := sqqqRsi < 31 ? "TECS" : "TECL"
+        branch := sqqqRsi < 31 ? "Extreme inverse" : "Extreme long"
+    else
+        target := tecsRsi >= bsvRsi ? "TECS" : "BSV"
+        branch := tecsRsi >= bsvRsi ? "Relative inverse" : "Relative bond"
+else if tqqqClose > tqqqSma
+    target := sqqqRsi < 34 ? "TECS" : "TECL"
+    branch := sqqqRsi < 34 ? "Trend inverse" : "Trend long"
+else
+    target := tecsRsi >= bsvRsi ? "TECS" : "BSV"
+    branch := tecsRsi >= bsvRsi ? "Relative inverse" : "Relative bond"
+
+// Historical 15:45 snapshots for the target-selection chart. A five-minute bar
+// labeled 15:40 closes at 15:45. Prior-day RSI state and SMA observations use
+// official daily closes, matching the QuantConnect current-session calculation.
+spy1545 = request.security("AMEX:SPY", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+qqq1545 = request.security("NASDAQ:QQQ", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+tqqq1545 = request.security("NASDAQ:TQQQ", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+uvxy1545 = request.security("AMEX:UVXY", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+sqqq1545 = request.security("NASDAQ:SQQQ", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+tecs1545 = request.security("AMEX:TECS", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+bsv1545 = request.security("AMEX:BSV", "5", snapshot1545(), lookahead=barmerge.lookahead_off)
+
+[spyPreviousClose, spyPreviousGain, spyPreviousLoss, spyPriorSma] = request.security("AMEX:SPY", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1], ta.sma(close[1], spySmaLength - 1)], lookahead=barmerge.lookahead_off)
+[qqqPreviousClose, qqqPreviousGain, qqqPreviousLoss, qqqPriorSma] = request.security("NASDAQ:QQQ", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1], ta.sma(close[1], qqqSmaLength - 1)], lookahead=barmerge.lookahead_off)
+[tqqqPreviousClose, tqqqPreviousGain, tqqqPreviousLoss, tqqqPriorSma] = request.security("NASDAQ:TQQQ", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1], ta.sma(close[1], tqqqSmaLength - 1)], lookahead=barmerge.lookahead_off)
+[uvxyPreviousClose, uvxyPreviousGain, uvxyPreviousLoss] = request.security("AMEX:UVXY", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1]], lookahead=barmerge.lookahead_off)
+[sqqqPreviousClose, sqqqPreviousGain, sqqqPreviousLoss] = request.security("NASDAQ:SQQQ", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1]], lookahead=barmerge.lookahead_off)
+[tecsPreviousClose, tecsPreviousGain, tecsPreviousLoss] = request.security("AMEX:TECS", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1]], lookahead=barmerge.lookahead_off)
+[bsvPreviousClose, bsvPreviousGain, bsvPreviousLoss] = request.security("AMEX:BSV", "D", [close[1], ta.rma(math.max(ta.change(close), 0.0), rsiLength)[1], ta.rma(math.max(-ta.change(close), 0.0), rsiLength)[1]], lookahead=barmerge.lookahead_off)
+
+spySma1545 = (spyPriorSma * (spySmaLength - 1) + spy1545) / spySmaLength
+qqqSma1545 = (qqqPriorSma * (qqqSmaLength - 1) + qqq1545) / qqqSmaLength
+tqqqSma1545 = (tqqqPriorSma * (tqqqSmaLength - 1) + tqqq1545) / tqqqSmaLength
+spyRsi1545 = provisionalRsi(spy1545, spyPreviousClose, spyPreviousGain, spyPreviousLoss, rsiLength)
+qqqRsi1545 = provisionalRsi(qqq1545, qqqPreviousClose, qqqPreviousGain, qqqPreviousLoss, rsiLength)
+tqqqRsi1545 = provisionalRsi(tqqq1545, tqqqPreviousClose, tqqqPreviousGain, tqqqPreviousLoss, rsiLength)
+uvxyRsi1545 = provisionalRsi(uvxy1545, uvxyPreviousClose, uvxyPreviousGain, uvxyPreviousLoss, rsiLength)
+sqqqRsi1545 = provisionalRsi(sqqq1545, sqqqPreviousClose, sqqqPreviousGain, sqqqPreviousLoss, rsiLength)
+tecsRsi1545 = provisionalRsi(tecs1545, tecsPreviousClose, tecsPreviousGain, tecsPreviousLoss, rsiLength)
+bsvRsi1545 = provisionalRsi(bsv1545, bsvPreviousClose, bsvPreviousGain, bsvPreviousLoss, rsiLength)
+
+string target1545 = na
+if spy1545 > spySma1545
+    target1545 := qqqRsi1545 > 81 or spyRsi1545 > 80 ? "UVXY" : "TQQQ"
+else if tqqqRsi1545 < 30
+    target1545 := "TECL"
+else if spyRsi1545 < 30
+    target1545 := "SPXL"
+else if uvxyRsi1545 > 74
+    if uvxyRsi1545 <= 84
+        target1545 := "UVXY"
+    else if qqq1545 > qqqSma1545
+        target1545 := sqqqRsi1545 < 31 ? "TECS" : "TECL"
+    else
+        target1545 := tecsRsi1545 >= bsvRsi1545 ? "TECS" : "BSV"
+else if tqqq1545 > tqqqSma1545
+    target1545 := sqqqRsi1545 < 34 ? "TECS" : "TECL"
+else
+    target1545 := tecsRsi1545 >= bsvRsi1545 ? "TECS" : "BSV"
+
+bool snapshotReady = not na(spySma1545) and not na(qqqSma1545) and not na(tqqqSma1545) and not na(bsvRsi1545)
+int targetCode1545 = target1545 == "TQQQ" ? 1 : target1545 == "UVXY" ? 2 : target1545 == "TECL" ? 3 : target1545 == "SPXL" ? 4 : target1545 == "TECS" ? 5 : 6
+plot(snapshotReady ? targetCode1545 : na, "15:45 target code", color=color.new(color.blue, 0), linewidth=2, style=plot.style_stepline, display=display.pane)
+bool snapshotChange = snapshotReady and (na(target1545[1]) or target1545 != target1545[1])
+if snapshotChange
+    label.new(bar_index, targetCode1545, target1545, style=label.style_label_down, color=color.navy, textcolor=color.white, size=size.small)
+
+// Live prices are used only for a whole-share estimate. Recalculate from the
+// broker's ask after the previous position has completely sold.
+tqqqPrice = request.security("NASDAQ:TQQQ", timeframe.period, close)
+uvxyPrice = request.security("AMEX:UVXY", timeframe.period, close)
+teclPrice = request.security("AMEX:TECL", timeframe.period, close)
+spxlPrice = request.security("AMEX:SPXL", timeframe.period, close)
+tecsPrice = request.security("AMEX:TECS", timeframe.period, close)
+bsvPrice = request.security("AMEX:BSV", timeframe.period, close)
+
+float targetPrice = switch target
+    "TQQQ" => tqqqPrice
+    "UVXY" => uvxyPrice
+    "TECL" => teclPrice
+    "SPXL" => spxlPrice
+    "TECS" => tecsPrice
+    => bsvPrice
+
+int estimatedShares = not na(targetPrice) and targetPrice > 0 ? int(math.floor(accountEquity * targetWeight / targetPrice)) : 0
+bool inputsReady = not na(spySma) and not na(qqqSma) and not na(tqqqSma) and not na(bsvRsi)
+bool decisionBar = hour(time, "America/New_York") == 15 and minute(time, "America/New_York") == 45
+
+var table dashboard = table.new(position.top_right, 2, 15, border_width=1)
+if barstate.islast
+    table.cell(dashboard, 0, 0, "Current preview", bgcolor=color.navy, text_color=color.white)
+    table.cell(dashboard, 1, 0, inputsReady ? target : "WAIT", bgcolor=color.navy, text_color=color.white)
+    table.cell(dashboard, 0, 1, "Decision branch", text_color=color.silver)
+    table.cell(dashboard, 1, 1, branch, text_color=color.silver)
+    table.cell(dashboard, 0, 2, "Est. shares", text_color=color.silver)
+    table.cell(dashboard, 1, 2, str.tostring(estimatedShares), text_color=color.silver)
+    table.cell(dashboard, 0, 3, "Target price", text_color=color.silver)
+    table.cell(dashboard, 1, 3, str.tostring(targetPrice, format.mintick), text_color=color.silver)
+    table.cell(dashboard, 0, 4, "SPY / SMA200", text_color=color.silver)
+    table.cell(dashboard, 1, 4, str.tostring(spyClose, "#.##") + " / " + str.tostring(spySma, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 5, "QQQ / SMA20", text_color=color.silver)
+    table.cell(dashboard, 1, 5, str.tostring(qqqClose, "#.##") + " / " + str.tostring(qqqSma, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 6, "TQQQ / SMA20", text_color=color.silver)
+    table.cell(dashboard, 1, 6, str.tostring(tqqqClose, "#.##") + " / " + str.tostring(tqqqSma, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 7, "SPY RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 7, str.tostring(spyRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 8, "QQQ RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 8, str.tostring(qqqRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 9, "TQQQ RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 9, str.tostring(tqqqRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 10, "SQQQ RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 10, str.tostring(sqqqRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 11, "UVXY RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 11, str.tostring(uvxyRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 12, "TECS / BSV RSI", text_color=color.silver)
+    table.cell(dashboard, 1, 12, str.tostring(tecsRsi, "#.##") + " / " + str.tostring(bsvRsi, "#.##"), text_color=color.silver)
+    table.cell(dashboard, 0, 13, "Status", text_color=color.silver)
+    table.cell(dashboard, 1, 13, decisionBar ? "DECISION WINDOW" : "Read at 15:45 ET", text_color=decisionBar ? color.orange : color.silver)
+    table.cell(dashboard, 0, 14, "Chart target", text_color=color.silver)
+    table.cell(dashboard, 1, 14, target1545, text_color=color.silver)

@@ -647,3 +647,220 @@ VIX-filtered     : 0
 Rule-filtered    : 0
 Missing-chain days: 2012-12-28, 2015-12-04
 Open positions   : 0
+
+
+#---------------------------------- ROTAION
+
+19:12:03 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2016-06-01 \
+  --end-date 2026-06-12 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2016-06-01 to 2026-06-12
+Execution        : qc_close
+Trading costs    : 0.00 bps per side
+Ending equity    : $7,460,461.09
+CAGR             : 53.72%
+Max drawdown     : -35.46%
+Volatility       : 39.88%
+Daily Sharpe     : 1.28
+Trade actions    : 126
+Stop exits       : 30
+QQQ buy/hold     : CAGR 21.44%, max DD -35.12%
+TQQQ buy/hold    : CAGR 43.47%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+22:36:09 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2016-06-01 \
+  --end-date 2026-06-12 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2016-06-01 to 2026-06-12
+Execution        : qc_close
+Trading costs    : 0.00 bps per side
+Ending equity    : $7,460,461.09
+CAGR             : 53.72%
+Max drawdown     : -35.46%
+Volatility       : 39.88%
+Daily Sharpe     : 1.28
+Trade actions    : 126
+Stop exits       : 30
+QQQ buy/hold     : CAGR 21.44%, max DD -35.12%
+TQQQ buy/hold    : CAGR 43.47%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+22:37:24 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2016-06-01 \
+  --end-date 2026-06-12 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2016-06-01 to 2026-06-12
+Execution        : qc_close
+Rebalance        : month_start
+Trading costs    : 0.00 bps per side
+Ending equity    : $7,460,461.09
+CAGR             : 53.72%
+Max drawdown     : -35.46%
+Volatility       : 39.88%
+Daily Sharpe     : 1.28
+Trade actions    : 126
+Stop exits       : 30
+QQQ buy/hold     : CAGR 21.44%, max DD -35.12%
+TQQQ buy/hold    : CAGR 43.47%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+22:45:49 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2026-06-13 \
+  --end-date 2026-09-01 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2026-06-15 to 2026-09-01
+Execution        : qc_close
+Rebalance        : month_start
+Trading costs    : 0.00 bps per side
+Ending equity    : $85,180.30
+CAGR             : -52.81%
+Max drawdown     : -20.66%
+Volatility       : 65.96%
+Daily Sharpe     : -0.81
+Trade actions    : 7
+Stop exits       : 2
+QQQ buy/hold     : CAGR -20.51%, max DD -10.96%
+TQQQ buy/hold    : CAGR -60.66%, max DD -31.57%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+22:50:06 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2026-06-13 \
+  --end-date 2026-09-01 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2026-06-15 to 2026-09-01
+Execution        : qc_close
+Rebalance        : month_start
+Daily QQQ exit   : disabled
+Trading costs    : 0.00 bps per side
+Ending equity    : $85,180.30
+CAGR             : -52.81%
+Max drawdown     : -20.66%
+Volatility       : 65.96%
+Daily Sharpe     : -0.81
+Trade actions    : 7
+Stop exits       : 2
+QQQ buy/hold     : CAGR -20.51%, max DD -10.96%
+TQQQ buy/hold    : CAGR -60.66%, max DD -31.57%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+13:38:38 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2016-06-01 \
+  --end-date 2026-08-31 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2016-06-01 to 2026-08-31
+Execution        : qc_close
+Rebalance        : month_start
+Daily QQQ exit   : disabled
+Trading costs    : 0.00 bps per side
+Ending equity    : $7,536,489.45
+CAGR             : 52.47%
+Max drawdown     : -35.46%
+Volatility       : 40.20%
+Daily Sharpe     : 1.26
+Trade actions    : 129
+Stop exits       : 31
+QQQ buy/hold     : CAGR 20.88%, max DD -35.12%
+TQQQ buy/hold    : CAGR 41.36%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+13:39:20 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2016-06-01 \
+  --end-date 2026-08-31 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close \
+> --daily-qqq-risk-off
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2016-06-01 to 2026-08-31
+Execution        : qc_close
+Rebalance        : month_start
+Daily QQQ exit   : enabled
+Trading costs    : 0.00 bps per side
+Ending equity    : $6,174,598.34
+CAGR             : 49.53%
+Max drawdown     : -35.46%
+Volatility       : 39.94%
+Daily Sharpe     : 1.21
+Trade actions    : 135
+Stop exits       : 30
+QQQ buy/hold     : CAGR 20.88%, max DD -35.12%
+TQQQ buy/hold    : CAGR 41.36%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+13:40:03 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2006-06-01 \
+  --end-date 2026-06-12 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2010-02-11 to 2026-06-12
+Execution        : qc_close
+Rebalance        : month_start
+Daily QQQ exit   : disabled
+Trading costs    : 0.00 bps per side
+Ending equity    : $9,717,683.21
+CAGR             : 32.34%
+Max drawdown     : -55.62%
+Volatility       : 37.20%
+Daily Sharpe     : 0.94
+Trade actions    : 218
+Stop exits       : 56
+QQQ buy/hold     : CAGR 19.75%, max DD -35.12%
+TQQQ buy/hold    : CAGR 43.78%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+13:41:43 ~/Git/pmcc_backtest_ruby main $ .venv/bin/python local_rotation_backtest.py \
+  --execution qc_close \
+  --start-date 2006-06-01 \
+  --end-date 2026-06-12 \
+  --initial-cash 100000 \
+  --output-dir results/rotation_qc_close \
+> --daily-qqq-risk-off
+
+=== MONTHLY LEVERAGED ETF ROTATION ===
+Period           : 2010-02-11 to 2026-06-12
+Execution        : qc_close
+Rebalance        : month_start
+Daily QQQ exit   : enabled
+Trading costs    : 0.00 bps per side
+Ending equity    : $6,673,653.87
+CAGR             : 29.33%
+Max drawdown     : -53.48%
+Volatility       : 36.79%
+Daily Sharpe     : 0.89
+Trade actions    : 234
+Stop exits       : 51
+QQQ buy/hold     : CAGR 19.75%, max DD -35.12%
+TQQQ buy/hold    : CAGR 43.78%, max DD -81.66%
+Daily equity CSV : results/rotation_qc_close/daily_equity.csv
+Trades CSV       : results/rotation_qc_close/trades.csv
+14:35:01 ~/Git/pmcc_backtest_ruby main $

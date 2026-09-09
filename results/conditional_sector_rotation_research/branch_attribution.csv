@@ -1,0 +1,10 @@
+branch,holding,days,pnl,entries
+bull_trend,TQQQ,3050,267663075.7365526,87
+bear_trend_long,TECL,139,77470124.75774613,33
+bear_tqqq_oversold,TECL,72,58293857.781939104,33
+bear_relative_inverse,TECS,133,57061332.709583364,40
+bear_spy_oversold,SPXL,11,14557805.534791613,7
+bull_overbought,UVXY,129,11862317.742512602,53
+bear_relative_bond,BSV,114,4717610.441287251,34
+bear_uvxy_momentum,UVXY,9,-6999.6774764207075,6
+bear_trend_inverse,TECS,33,-7600191.57138106,14
