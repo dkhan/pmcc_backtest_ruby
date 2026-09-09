@@ -1,10 +1,19 @@
 from AlgorithmImports import *
 
+# Since 2011
+# 15:59 => CAGR: 174.967 Drawdown: 50.4% Sharpe ratio: 2.480
 # 15:45 => CAGR: 153.426 Drawdown: 52.4% Sharpe ratio: 2.256
 # 15:30 => CAGR: 158.563 Drawdown: 51.3% Sharpe ratio: 2.335
 # 15:15 => CAGR: 145.759 Drawdown: 56.1% Sharpe ratio: 2.191
 # 15:00 => CAGR: 139.856 Drawdown: 49.8% Sharpe ratio: 2.154
 # 12:30 => CAGR: 121.979 Drawdown: 50.8% Sharpe ratio: 1.157
+# 10:00 => CAGR: 104.166 Drawdown: 51.8% Sharpe ratio: 1.714
+# 09:45 => CAGR: 100.747 Drawdown: 59.0% Sharpe ratio: 1.637
+# 09:31 => CAGR: 103.419 Drawdown: 56.7% Sharpe ratio: 1.717
+
+# Since 2021
+# 15:45 => CAGR: 120.205 Drawdown: 52.4% Sharpe ratio: 1.831
+# 15:30 => CAGR: 124.905 Drawdown: 51.3% Sharpe ratio: 1.884
 
 class ConditionalSectorRotation(QCAlgorithm):
     """3:45 PM strategy using the current session in its RSI/SMA metrics."""
